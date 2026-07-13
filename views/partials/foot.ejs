@@ -1,0 +1,16 @@
+<% if(user){ %>
+  <nav class="bottom-nav">
+    <% if(superAdminMode){ %>
+      <a class="<%= path.startsWith('/super-admin')?'active':'' %>" href="/super-admin"><span>⚙</span>Super Admin</a>
+      <% if(canSwitchToMember){ %><form action="/view-mode" method="post"><input type="hidden" name="mode" value="member"><button><span>⇄</span>Musalla Role</button></form><% } %>
+      <a class="<%= path==='/profile'?'active':'' %>" href="/profile"><span>♙</span>Profile</a>
+    <% } else { %>
+      <a class="<%= path==='/'?'active':'' %>" href="/"><span>⌂</span>Home</a>
+      <a class="<%= path==='/membership-requests'?'active':'' %>" href="/membership-requests"><span>＋</span>Join</a>
+      <% if(musallaNav&&canManageMembers){ %><a class="<%= path===`/musallas/${musallaNav.id}/members`?'active':'' %>" href="/musallas/<%= musallaNav.id %>/members"><span aria-hidden="true">👥</span>Members</a><% } %>
+      <% if(user.is_superuser){ %><form action="/view-mode" method="post"><input type="hidden" name="mode" value="super"><button><span>⚙</span>Super Admin</button></form><% } %>
+      <a class="<%= path==='/profile'?'active':'' %>" href="/profile"><span>♙</span>Profile</a>
+    <% } %>
+  </nav>
+<% } %>
+</div><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js');</script></body></html>

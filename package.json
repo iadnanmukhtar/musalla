@@ -1,0 +1,25 @@
+{
+  "name": "musalla-imam-roster",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mobile-first imam opt-in and musalla administration app",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "migrate:mysql": "node scripts/migrate-sqlite-to-mysql.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "express-session": "^1.18.1",
+    "helmet": "^8.1.0",
+    "multer": "^2.2.0",
+    "mysql2": "^3.22.6",
+    "nodemailer": "^7.0.13",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0"
+  }
+}

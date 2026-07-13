@@ -1,0 +1,59 @@
+.prayer{grid-template-columns:1fr auto}
+.musalla-title{display:flex;align-items:center;gap:9px}
+.profile-icon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--mint);color:var(--green);font-size:17px;text-decoration:none}
+.profile-icon:hover,.profile-icon:focus-visible{background:var(--green);color:#fff}
+.timetable-link{display:inline-block;margin-top:8px;color:var(--green);font-size:13px;font-weight:800;text-decoration:none}
+.date-picker{grid-template-columns:42px 1fr 42px 42px}
+.date-select{position:relative;display:block;min-width:0;height:42px;border-radius:10px;background:#fff;overflow:hidden}
+.date-display{height:42px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--green);font-size:15px;font-weight:800;white-space:nowrap}
+.date-display>span{font-size:20px}
+.date-select input[type="date"]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.date-picker .today-button{font-size:15px}.date-picker .today-button.current{background:var(--green);color:#fff}
+.mosque-icon img{width:100%;height:100%;object-fit:cover}
+.logo-preview{width:88px;height:88px;border:1px solid var(--line);border-radius:18px;object-fit:cover}
+.invite-panel{margin:0 0 16px}
+.members-list{padding-top:8px;padding-bottom:8px}
+.member-summary{display:flex!important;grid-template-columns:none;align-items:center;gap:10px}
+.member-summary .mini-avatar{width:38px;height:38px;font-size:15px}
+.member-summary .mini-avatar img{width:100%;height:100%;object-fit:cover}
+.admin-musalla-list{display:grid;gap:12px}
+.admin-musalla{padding:16px}
+.admin-musalla.disabled{opacity:.68}
+.admin-musalla-info{display:flex;align-items:center;gap:12px}
+.admin-musalla-info h3,.admin-musalla-info p{margin:0 0 4px}
+.admin-musalla-info p,.admin-musalla-info small{color:var(--muted)}
+.admin-actions{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.admin-actions form{display:flex;margin:0}
+.admin-actions .chip{display:inline-flex;align-items:center;justify-content:center;min-height:34px;margin:0;text-decoration:none;font:inherit;line-height:1}
+.chip.danger{background:#fae8e8;color:#9f2525}
+.opt-in-dialog{width:min(420px,calc(100% - 32px));padding:0;border:0;border-radius:20px;box-shadow:0 24px 70px rgba(5,92,125,.3)}
+.opt-in-dialog::backdrop{background:rgba(18,49,61,.58)}
+.dialog-card{position:relative;padding:24px;display:grid;gap:14px}
+.dialog-card h2,.dialog-card p{margin:0}
+.dialog-card>p:not(.eyebrow){color:var(--muted);line-height:1.45}
+.dialog-close{position:absolute;right:12px;top:10px;border:0;background:transparent;color:var(--muted);font-size:28px;cursor:pointer}
+.dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}
+.member-name{color:var(--ink);font-weight:800;text-decoration:none}.member-name:hover{text-decoration:underline}
+.member-profile-head{display:flex;align-items:center;gap:16px;margin-bottom:20px}.member-profile-head h1,.member-profile-head p{margin:0}.member-profile-head h1{color:var(--green)}.member-profile-head p:last-child{margin-top:5px;color:var(--muted)}
+.profile-avatar{display:grid;place-items:center;width:68px;height:68px;border-radius:20px;overflow:hidden;background:var(--green);color:#fff;font-size:25px;font-weight:800}.profile-avatar img{width:100%;height:100%;object-fit:cover}
+.member-details{margin-bottom:16px}.member-details h2,.super-members h2{margin-top:0;font-size:18px}.member-details dl{margin:0;display:grid;gap:12px}.member-details dl div{display:grid;gap:3px}.member-details dt{color:var(--muted);font-size:12px;font-weight:700}.member-details dd{margin:0}
+.role-form fieldset{border:0;padding:0;margin:0;display:grid;gap:10px}.role-form legend{font-size:18px;font-weight:800}.role-form fieldset>p{margin:0 0 5px;color:var(--muted);font-size:13px}.role-option{display:flex;grid-template-columns:none;align-items:flex-start;gap:10px;padding:13px;border:1px solid var(--line);border-radius:13px}.role-option input{width:20px;margin:2px 0 0}.role-option span{display:grid;gap:3px}.role-option small{color:var(--muted);font-weight:400}
+.super-members{margin-top:16px}.super-member{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line);color:var(--ink);text-decoration:none}.super-member span{display:grid;gap:3px}.super-member small{color:var(--muted)}
+.member-actions{display:flex!important;grid-template-columns:none;gap:6px}.member-actions form{margin:0}
+.content-filter{margin:4px 0 14px}.content-filter input{padding-left:16px;background:#fff}
+[hidden]{display:none!important}
+.profile-photo-field{justify-items:center;text-align:center}.profile-photo-circle{display:grid;place-items:center;width:112px;height:112px;border-radius:50%;overflow:hidden;background:var(--mint);color:var(--green);font-size:38px;font-weight:800;border:3px solid #fff;box-shadow:0 0 0 2px var(--line)}.profile-photo-circle img{width:100%;height:100%;object-fit:cover}.profile-photo-field input{margin-top:4px}
+.registration-form{display:grid;gap:16px}.registration-musallas{display:grid;gap:10px}.registration-card{display:grid;grid-template-columns:22px 48px 1fr;align-items:center;gap:12px;padding:14px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}.registration-card input{width:20px}.registration-card>span:last-child{display:grid;gap:4px}.registration-card small{color:var(--muted);font-weight:400}.form-error{margin:0;color:#a23434;font-size:13px;font-weight:700}
+.request-statuses,.membership-request-list{margin-top:20px}.request-status,.membership-request,.request-musalla{display:flex;align-items:center;justify-content:space-between;gap:12px}.request-status,.membership-request{padding:12px 0;border-top:1px solid var(--line)}.request-status:first-child,.membership-request:first-child{border-top:0}.status-chip{display:inline-block;padding:6px 9px;border-radius:99px;background:var(--mint);color:var(--green);font-size:11px;font-weight:800;text-transform:capitalize}.status-chip.denied{background:#fae8e8;color:#9f2525}.request-actions{display:flex;gap:6px}.request-actions form{margin:0}.chip.approve{background:#dff3fa;color:#075f7f}.request-musallas{display:grid;gap:12px}.request-musalla form{margin:0}
+:root{--green:#087fab;--green2:#05698f;--mint:#e5f5fb;--gold:#0a9dce;--cream:#f7fbfd;--ink:#12313d;--muted:#607780;--line:#d7e8ee;--shadow:0 8px 30px rgba(8,127,171,.1)}
+body{background:#eaf4f8}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.login{background:radial-gradient(circle at 50% 12%,#20b4e3 0,#087fab 48%,#055c7d 100%)}
+.login .lead{color:#d8f2fb}
+.login .eyebrow{color:#d8f2fb}
+.notice{background:#dff3fa;color:#075f7f}
+.brand-mark,.hero-mark{background:transparent;overflow:hidden}
+.brand-mark img,.hero-mark img{width:100%;height:100%;display:block}
+.login .hero-mark{background:#08a1d4;border-color:rgba(255,255,255,.35)}
+.schedule-page{padding:12px 16px 16px}.schedule-page .back{margin-bottom:7px}.schedule-page .musalla-head{gap:10px}.schedule-page .mosque-icon.big{width:48px;height:48px;border-radius:12px}.schedule-page .musalla-head h1{font-size:25px}.schedule-page .musalla-head p{font-size:12px;margin-top:4px}.schedule-page .timetable-link{margin-top:4px;font-size:12px}.schedule-page .date-picker{margin:12px 0 8px;padding:6px;gap:6px}.schedule-page .date-picker button,.schedule-page .date-select,.schedule-page .date-display{height:38px}.schedule-page .date-picker button{font-size:21px}.schedule-page .date-display{font-size:13px}.schedule-page .date-display>span{font-size:17px}.schedule-page .prayers{gap:6px}.schedule-page .prayer{min-height:54px;padding:8px 10px;border-radius:13px;gap:8px}.schedule-page .prayer-name h3{font-size:16px;margin-bottom:2px}.schedule-page .prayer-name p{font-size:11px}.schedule-page .optin{padding:8px;font-size:11px}
+.bottom-nav form{flex:1;margin:0}.bottom-nav form input{display:none}.bottom-nav form button{width:100%;height:100%;padding:0;border:0;background:#fff;color:#84908b;font:inherit;font-size:11px;font-weight:700;display:grid;place-items:center;align-content:center;gap:2px;cursor:pointer}.bottom-nav form button span{font-size:23px;line-height:1}

@@ -1,0 +1,30 @@
+<%- include('partials/head',{title:`Edit ${musalla.name}`}) %><%- include('partials/nav') %>
+<main>
+  <a class="back" href="/super-admin">‹ All Musallas</a>
+  <header class="page-head"><p class="eyebrow">SUPER ADMIN</p><h1>Edit Musalla</h1><p>Update this Musalla's platform record.</p></header>
+  <form action="/super-admin/musallas/<%= musalla.id %>" method="post" enctype="multipart/form-data" class="surface stack"><label>Logo<% if(musalla.logo_url){ %><img class="logo-preview" src="<%= musalla.logo_url %>" alt="Current <%= musalla.name %> logo"><% } %><input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>PNG, JPG, WebP, or GIF. Maximum 2 MB.</small></label><label>Name<input name="name" required maxlength="150" value="<%= musalla.name %>"></label><label>Address<input name="address" maxlength="300" value="<%= musalla.address %>"></label><label>Prayer timetable or app link<input name="timetable_url" type="url" value="<%= musalla.timetable_url %>" placeholder="https://..."></label><label>Timezone<input name="timezone" required value="<%= musalla.timezone %>"><small>Use an IANA timezone such as America/Chicago.</small></label><button class="button">Save Musalla</button></form>
+  <% if(needsInitialAdmin){ %>
+    <section class="surface super-members">
+      <h2>Initial membership requests</h2>
+      <p>The Musalla does not have an administrator yet. As a super admin, approve its first member and assign the Imam role, Administrator role, or both.</p>
+      <% requests.forEach(request=>{ %>
+        <div class="membership-request">
+          <div><b><%= request.name %></b><small><%= request.email %></small></div>
+          <div class="request-actions">
+            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack">
+              <div class="role-options">
+                <label class="role-option"><input type="checkbox" name="roles" value="imam"> Imam</label>
+                <label class="role-option"><input type="checkbox" name="roles" value="admin"> Administrator</label>
+              </div>
+              <button class="button chip approve">Approve membership</button>
+            </form>
+            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/deny" method="post"><button class="chip danger">Deny</button></form>
+          </div>
+        </div>
+      <% }) %>
+      <% if(!requests.length){ %><div class="empty">No pending membership requests.</div><% } %>
+    </section>
+  <% } %>
+  <section class="surface super-members"><h2>Members</h2><% members.forEach(member=>{ %><a class="super-member" href="/super-admin/musallas/<%= musalla.id %>/members/<%= member.id %>/profile"><span><b><%= member.name %></b><small><%= member.email %> · <%= member.role.split(',').join(' · ') %></small></span><b>›</b></a><% }) %><% if(!members.length){ %><div class="empty">No members.</div><% } %></section>
+</main>
+<%- include('partials/foot') %>
