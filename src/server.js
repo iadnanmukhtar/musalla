@@ -367,6 +367,20 @@ app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
   res.locals.canManageMembers=isAdmin;
   res.render('musalla', { musalla,slots,date,today,firstDate,lastDate,isAdmin,canLead });
 });
+app.post('/musallas/:id/leave', requireAuth, musallaAccess, async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [locations] = await connection.execute('SELECT timezone FROM musalla_locations WHERE id=? FOR UPDATE', [req.params.id]);
+    if (!locations[0]) { await connection.rollback(); return res.sendStatus(404); }
+    const { today } = scheduleBounds(new Date(), locations[0].timezone);
+    await connection.execute('UPDATE musalla_prayer_slots SET imam_user_id=NULL WHERE musalla_id=? AND imam_user_id=? AND prayer_date>=?', [req.params.id,req.user.id,today]);
+    await connection.execute('DELETE FROM musalla_memberships WHERE musalla_id=? AND user_id=?', [req.params.id,req.user.id]);
+    await connection.commit();
+  } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
+  req.session.notice='You have left the Musalla and your future prayer assignments were cleared';
+  res.redirect('/');
+});
 app.get('/musallas/:id/members', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [locations] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
   const musalla = locations[0];
