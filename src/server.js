@@ -175,8 +175,16 @@ app.use(async (req, res, next) => {
   } catch (error) { next(error); }
 });
 app.get('/login', (req, res) => res.render('login', { googleReady: Boolean(process.env.GOOGLE_CLIENT_ID) }));
-app.get('/auth/google', (req, res, next) => process.env.GOOGLE_CLIENT_ID ? passport.authenticate('google', { scope: ['profile','email'] })(req,res,next) : res.redirect('/login'));
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), (req, res) => res.redirect('/'));
+app.get('/auth/google', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID) return res.redirect('/login');
+  req.session.authRedirect = req.query.next==='/register-musalla' ? '/register-musalla' : '/';
+  passport.authenticate('google', { scope: ['profile','email'] })(req,res,next);
+});
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), (req, res) => {
+  const destination = req.session.authRedirect || '/';
+  delete req.session.authRedirect;
+  res.redirect(destination);
+});
 app.post('/logout', (req, res) => req.logout(() => res.redirect('/login')));
 app.post('/view-mode', requireAuth, async (req, res) => {
   if (!req.user.is_superuser) return res.sendStatus(403);
@@ -195,16 +203,16 @@ app.post('/view-mode', requireAuth, async (req, res) => {
 });
 
 app.get('/super-admin', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [musallas] = await pool.query(`SELECT m.*,COUNT(DISTINCT ms.user_id) member_count,COUNT(DISTINCT CASE WHEN p.imam_user_id IS NOT NULL THEN p.id END) assignment_count FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id LEFT JOIN musalla_prayer_slots p ON p.musalla_id=m.id GROUP BY m.id ORDER BY m.is_disabled,m.name`);
+  const [musallas] = await pool.query(`SELECT m.*,COUNT(DISTINCT CASE WHEN ms.status IN ('active','disabled') THEN ms.user_id END) member_count,COUNT(DISTINCT CASE WHEN p.imam_user_id IS NOT NULL THEN p.id END) assignment_count FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id LEFT JOIN musalla_prayer_slots p ON p.musalla_id=m.id GROUP BY m.id ORDER BY m.is_disabled,m.name`);
   res.render('super-admin', { musallas });
 });
 app.get('/super-admin/musallas/:id', requireAuth, requireSuperAdmin, async (req, res) => {
   const [rows] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
   if (!rows[0]) return res.sendStatus(404);
-  const [members] = await pool.execute("SELECT u.id,u.name,u.email,u.avatar_url,IF(ms.role='','Member',ms.role) role,ms.status FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? ORDER BY ms.status,ms.role,u.name", [req.params.id]);
+  const [members] = await pool.execute("SELECT u.id,u.name,u.email,u.avatar_url,IF(ms.role='','Member',ms.role) role,ms.status FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status IN ('active','disabled') ORDER BY ms.status,ms.role,u.name", [req.params.id]);
   const [requests] = await pool.execute("SELECT u.id,u.name,u.email,u.avatar_url FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status='pending' ORDER BY u.name", [req.params.id]);
   const [adminRows] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='active' AND FIND_IN_SET('admin',role)>0", [req.params.id]);
-  res.render('super-admin-musalla', { musalla: rows[0], members: members.filter(member=>member.status!=='pending'), requests, needsInitialAdmin: Number(adminRows[0].count)===0 });
+  res.render('super-admin-musalla', { musalla: rows[0], members, requests, needsInitialAdmin: Number(adminRows[0].count)===0 });
 });
 app.post('/super-admin/musallas/:id/membership-requests/:userId/approve', requireAuth, requireSuperAdmin, async (req, res) => {
   const roles = selectedRoles(req.body);
@@ -223,7 +231,7 @@ app.post('/super-admin/musallas/:id/membership-requests/:userId/deny', requireAu
 app.get('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requireSuperAdmin, async (req, res) => {
   const [rows] = await pool.execute("SELECT u.id,u.name,u.email,u.phone,u.bio,u.avatar_url,ms.role,ms.status,m.name musalla_name,m.id musalla_id FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('active','disabled')", [req.params.id,req.params.userId]);
   if (!rows[0]) return res.sendStatus(404);
-  res.render('member-profile', { member: rows[0], isSuperAdmin: true, formAction: `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`, backUrl: `/super-admin/musallas/${req.params.id}` });
+  res.type('html').set('Content-Disposition','inline').render('member-profile', { member: rows[0], isSuperAdmin: true, formAction: `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`, backUrl: `/super-admin/musallas/${req.params.id}` });
 });
 app.post('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requireSuperAdmin, async (req, res) => {
   const roles = selectedRoles(req.body);
@@ -326,6 +334,7 @@ app.post('/profile', requireAuth, profilePhotoUpload.single('profile_photo'), as
   await pool.execute('UPDATE musalla_users SET name=?,phone=?,bio=?,avatar_url=? WHERE id=?', [req.body.name.trim(),req.body.phone.trim(),req.body.bio.trim(),avatarUrl,req.user.id]);
   req.session.notice='Profile updated'; res.redirect('/profile');
 });
+app.get('/register-musalla', requireAuth, (req, res) => res.render('register-musalla'));
 app.post('/musallas', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
   const connection = await pool.getConnection();
@@ -335,6 +344,7 @@ app.post('/musallas', requireAuth, async (req, res) => {
     const [result] = await connection.execute('INSERT INTO musalla_locations (name,address,timetable_url,timezone,created_by) VALUES (?,?,?,?,?)', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',req.body.timezone||'America/Chicago',req.user.id]);
     id = result.insertId;
     await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending')", [req.user.id,id]);
+    await connection.execute('UPDATE musalla_users SET registration_completed=TRUE WHERE id=?', [req.user.id]);
     await connection.commit();
   } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   await syncPrayerSchedules(id);
@@ -381,7 +391,7 @@ app.get('/musallas/:id/members/:userId/profile', requireAuth, musallaAccess, req
   if (!rows[0]) return res.sendStatus(404);
   res.locals.musallaNav={ id: req.params.id };
   res.locals.canManageMembers=true;
-  res.render('member-profile', { member: rows[0], isSuperAdmin: false, formAction: `/musallas/${req.params.id}/members/${req.params.userId}/profile`, backUrl: `/musallas/${req.params.id}/members` });
+  res.type('html').set('Content-Disposition','inline').render('member-profile', { member: rows[0], isSuperAdmin: false, formAction: `/musallas/${req.params.id}/members/${req.params.userId}/profile`, backUrl: `/musallas/${req.params.id}/members` });
 });
 app.post('/musallas/:id/members/:userId/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const roles = selectedRoles(req.body);

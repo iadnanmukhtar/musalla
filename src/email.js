@@ -31,12 +31,15 @@ async function sendNotification(pool, { subject, text, additionalRecipients = []
   try {
     const [users] = await pool.query('SELECT email FROM musalla_users WHERE is_superuser=TRUE AND is_disabled=FALSE');
     const configured = String(process.env.SUPER_ADMIN_EMAIL || '').split(',').map(value=>value.trim()).filter(Boolean);
-    const recipients = [...new Set([...users.map(user=>user.email), ...configured, ...additionalRecipients].filter(Boolean))];
+    const senderAddress = (String(process.env.MAIL_FROM).match(/<([^>]+)>/)?.[1] || process.env.MAIL_FROM).trim().toLowerCase();
+    const recipients = [...new Set([...users.map(user=>user.email), ...configured, ...additionalRecipients]
+      .filter(Boolean)
+      .filter(email=>email.trim().toLowerCase()!==senderAddress))];
     if (!recipients.length) {
       console.warn('Email notification skipped because no recipient is configured.');
       return false;
     }
-    await mailer.sendMail({ from: process.env.MAIL_FROM, to: process.env.MAIL_FROM, bcc: recipients.join(','), subject, text });
+    await mailer.sendMail({ from: process.env.MAIL_FROM, bcc: recipients.join(','), subject, text });
     return true;
   } catch (error) {
     console.error('Unable to send super-admin email notification:', error.message);
