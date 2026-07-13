@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Musalla">
   <rect width="512" height="512" rx="112" fill="#08a1d4"/>
   <g fill="none" stroke="#fff" stroke-width="28" stroke-linejoin="round" stroke-linecap="round">
-    <path d="M143 247v-28c0-57 41-76 83-92 16-6 24-14 30-25 7 11 15 19 31 25 42 16 82 35 82 92v28"/>
-    <path d="M106 247h300v34h-25v126H131V281h-25z"/>
-    <path d="M218 407v-82h76v82"/>
+    <path fill="none" stroke="#fff" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" d="M143 247v-28c0-57 41-76 83-92 16-6 24-14 30-25 7 11 15 19 31 25 42 16 82 35 82 92v28"/>
+    <path fill="none" stroke="#fff" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" d="M106 247h300v34h-25v126H131V281h-25z"/>
+    <path fill="none" stroke="#fff" stroke-width="28" stroke-linejoin="round" stroke-linecap="round" d="M218 407v-82h76v82"/>
   </g>
 </svg>
