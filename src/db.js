@@ -67,6 +67,7 @@ async function initializeDatabase() {
       user_id BIGINT UNSIGNED NOT NULL,
       musalla_id BIGINT UNSIGNED NOT NULL,
       role SET('imam','admin') NOT NULL DEFAULT '',
+      requested_role ENUM('','imam') NOT NULL DEFAULT '',
       status ENUM('pending','active','disabled','denied') NOT NULL DEFAULT 'active',
       PRIMARY KEY (user_id,musalla_id),
       KEY idx_musalla_memberships_location (musalla_id),
@@ -74,6 +75,8 @@ async function initializeDatabase() {
       CONSTRAINT fk_musalla_memberships_location FOREIGN KEY (musalla_id) REFERENCES musalla_locations(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [requestedRoleColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_memberships' AND column_name='requested_role'");
+  if (!requestedRoleColumns.length) await pool.query("ALTER TABLE musalla_memberships ADD COLUMN requested_role ENUM('','imam') NOT NULL DEFAULT '' AFTER role");
   const [roleColumns] = await pool.query("SELECT COLUMN_TYPE,COLUMN_DEFAULT FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_memberships' AND column_name='role'");
   if (roleColumns[0] && (!roleColumns[0].COLUMN_TYPE.toLowerCase().startsWith('set(') || roleColumns[0].COLUMN_DEFAULT !== '')) {
     await pool.query("ALTER TABLE musalla_memberships MODIFY role SET('imam','admin') NOT NULL DEFAULT ''");

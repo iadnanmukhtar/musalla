@@ -1,21 +1,42 @@
 # Musalla
 
-A mobile-first Node.js web app for managing imam volunteers across multiple musallas.
+Musalla is a mobile-first web application for coordinating Imams across multiple prayer spaces. Imams can volunteer for salah, Musalla administrators can manage their local community, and super admins can manage the platform as a whole.
 
-## Features
+The application is built with Node.js, Express, EJS, MySQL, Passport, and Nodemailer. It is server-rendered, installable as a Progressive Web App, and designed to work comfortably on iOS and Android.
 
-- Google account registration and sign-in
-- Installable PWA interface for iOS and Android
-- Multiple musallas with musalla-specific administrators
-- Dedicated member roster for each Musalla
-- Separate super-admin Musalla management
-- Automatically available five-prayer roster with one-tap imam opt-in
-- Four weeks of roster history and three months of advance scheduling
-- Member access enable/disable controls
-- Imam profiles with name, phone, and bio
-- Superuser access for managing every musalla
+## How it works
 
-## Run locally
+Users sign in with Google and join one or more Musallas. Membership requests are reviewed by the appropriate Musalla administrators, who can grant Imam or administrator access and manage existing members.
+
+Each Musalla has a daily roster for Fajr, Zuhr, Asr, Maghrib, and Isha. Imams can opt in to an available prayer with one tap and may volunteer for the same daily prayer across several consecutive days. The schedule retains four weeks of history and provides three months of future availability.
+
+Friday schedules can be configured with up to three Jumuah slots. When at least one Jumuah slot is enabled, the enabled slots replace Zuhr on Fridays. If none are enabled, the regular Zuhr slot remains.
+
+Musalla administrators can invite an Imam using a prepared message through WhatsApp, the device share sheet, or the clipboard. The invitation link survives sign-in and returns the recipient to the intended Musalla. A membership request created from that link is marked as an Imam request, so approval grants the Imam role directly.
+
+## Roles
+
+### Members
+
+Members can search for Musallas, submit membership requests, monitor or cancel pending requests, maintain their profile, and leave a Musalla. Leaving automatically clears their future prayer assignments.
+
+### Imams
+
+Imams have all regular member capabilities and can opt in to available prayer slots, withdraw from their own assignments, and volunteer across a consecutive date range.
+
+### Musalla administrators
+
+Musalla administrators manage membership requests, roles, member access, and Imam removal. They can edit the Musalla name, address, logo, timetable link, and Jumuah configuration, as well as send Imam invitations from the Members page.
+
+### Super admins
+
+Super admins manage all Musallas without becoming local members. They can register, edit, enable, disable, or delete a Musalla; approve its initial administrator; manage member roles; and edit the same Musalla settings available to local administrators.
+
+Super-admin access is controlled exclusively by `musalla_users.is_superuser=TRUE` in MySQL. It is not granted through an environment variable.
+
+## Local setup
+
+Copy the environment template, install dependencies, and start the development server:
 
 ```bash
 cp .env.example .env
@@ -23,40 +44,93 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and sign in with Google.
+Open the URL configured in `BASE_URL`. The example configuration uses `http://localhost:3000`.
 
-## Test mode
-
-Set `TEST_MODE=true` in `.env` and restart the app. The login page will offer test Imam and test Administrator accounts. Startup seeds two Musallas flagged with `is_test=TRUE`; both test users are active members of both Musallas. Existing production data remains visible in test mode.
-
-With `TEST_MODE=false`, test login is disabled, test users cannot authenticate, and Musallas flagged as test data are excluded from application queries. The `musalla_users` and `musalla_locations` tables store this boundary in their `is_test` columns.
-
-## Configure MySQL
-
-Set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` in `.env`. The app creates isolated `musalla_*` tables automatically at startup.
-
-To migrate an existing local SQLite database once:
+Other commands:
 
 ```bash
-npm run migrate:mysql
+npm start                 # Start without watch mode
+npm test                  # Run the Node test suite
+npm run migrate:mysql     # Import the former SQLite database
 ```
 
-## Configure Google sign-in
+## Database
 
-Create an OAuth 2.0 Web application in Google Cloud, add this redirect URI:
+Configure MySQL with the `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` values in `.env`. On startup, the application creates and incrementally updates its tables:
 
-```
+- `musalla_users`
+- `musalla_locations`
+- `musalla_memberships`
+- `musalla_prayer_slots`
+
+Users and Musallas include an `is_test` flag to isolate test records. Memberships store the active role and, when applicable, an invited Imam role awaiting approval.
+
+## Google sign-in
+
+Create an OAuth 2.0 Web application in Google Cloud and register a callback URL matching `BASE_URL`:
+
+```text
 http://localhost:3000/auth/google/callback
 ```
 
-Then set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BASE_URL`, and a strong `SESSION_SECRET` in `.env`. In production, use HTTPS, set `NODE_ENV=production`, and use a persistent session store rather than the default in-memory store.
+Then configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BASE_URL`, and `SESSION_SECRET` in `.env`.
 
-## Super-admin access
+If a user selects Register a Musalla before authentication, the application returns them to that flow after Google sign-in. A new user must complete the Musalla details form. An existing user can cancel and return to the application.
 
-Superusers are redirected to `/super-admin` after signing in. The account must have `is_superuser=TRUE` in `musalla_users`; normal imams and Musalla administrators cannot open this route.
+## Test mode
 
-## Configure email notifications
+Test mode makes it possible to exercise Imam and administrator workflows without changing the visibility of production data:
 
-Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `MAIL_FROM` in `.env`. Notifications go to every active user with `is_superuser=TRUE`. You can add comma-separated fallback recipients with `SUPER_ADMIN_EMAIL`.
+```env
+TEST_MODE=true
+```
 
-Super admins are notified when a new Musalla is registered. Every new or renewed membership request is emailed to the Musalla's active administrators and the super admins.
+After restarting, the login page provides buttons for a seeded Test Imam and Test Administrator. Both accounts belong to Test Musalla North and Test Musalla South with the appropriate roles. Existing production data remains available for comparison.
+
+Test users and Musallas are stored with `is_test=TRUE`. When `TEST_MODE=false`, test logins are unavailable, test users cannot authenticate, and test Musallas are excluded from application queries and schedule generation. Test users are also prevented from joining production Musallas, and any Musalla they create is marked as test data.
+
+## Email notifications
+
+Email delivery requires `SMTP_HOST` and `MAIL_FROM`. Configure `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASSWORD` as required by the SMTP provider.
+
+The application sends notifications when a Musalla is submitted for review and when a new or renewed membership request is created, including a request originating from an Imam invitation.
+
+Membership notifications go to every active administrator of the affected Musalla and every active database-designated super admin. Addresses are normalized and deduplicated. There is no `SUPER_ADMIN_EMAIL` setting; super-admin recipients come from the database.
+
+## Environment variables
+
+| Variable | Description |
+| --- | --- |
+| `PORT` | HTTP server port |
+| `BASE_URL` | Public origin used for OAuth callbacks, emails, and invitations |
+| `SESSION_SECRET` | Secret used to sign sessions |
+| `NODE_ENV` | Runtime environment |
+| `TEST_MODE` | Enables isolated test accounts and Musallas |
+| `MYSQL_HOST` | MySQL host |
+| `MYSQL_PORT` | MySQL port |
+| `MYSQL_USER` | MySQL user |
+| `MYSQL_PASSWORD` | MySQL password |
+| `MYSQL_DATABASE` | MySQL database |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `SMTP_HOST` | SMTP host |
+| `SMTP_PORT` | SMTP port |
+| `SMTP_SECURE` | Whether SMTP uses a secure connection |
+| `SMTP_USER` | Optional SMTP username |
+| `SMTP_PASSWORD` | Optional SMTP password |
+| `MAIL_FROM` | Notification sender |
+
+## Mobile installation
+
+Musalla includes a web-app manifest, service worker, application icons, and iOS safe-area support. In a supported mobile browser, users can add it to their home screen and run it with an app-like interface.
+
+## Production deployment
+
+For production:
+
+- Serve the application over HTTPS.
+- Set `NODE_ENV=production` and `TEST_MODE=false`.
+- Use a strong, unique `SESSION_SECRET`.
+- Set `BASE_URL` to the public HTTPS origin.
+- Replace the default in-memory session store with a persistent store.
+- Use durable shared storage for uploaded profile photos and Musalla logos when running multiple application instances.

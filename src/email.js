@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const TEST_MODE = /^(1|true|yes)$/i.test(process.env.TEST_MODE || '');
 
 let transporter;
 let configurationWarningShown = false;
@@ -29,14 +30,12 @@ async function sendNotification(pool, { subject, text, additionalRecipients = []
   const mailer = smtpTransport();
   if (!mailer) return false;
   try {
-    const [users] = await pool.query('SELECT email FROM musalla_users WHERE is_superuser=TRUE AND is_disabled=FALSE');
-    const configured = String(process.env.SUPER_ADMIN_EMAIL || '').split(',').map(value=>value.trim()).filter(Boolean);
-    const senderAddress = (String(process.env.MAIL_FROM).match(/<([^>]+)>/)?.[1] || process.env.MAIL_FROM).trim().toLowerCase();
-    const recipients = [...new Set([...users.map(user=>user.email), ...configured, ...additionalRecipients]
-      .filter(Boolean)
-      .filter(email=>email.trim().toLowerCase()!==senderAddress))];
+    const [users] = await pool.query(`SELECT email FROM musalla_users WHERE is_superuser=TRUE AND is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`);
+    const recipients = [...new Set([...users.map(user=>user.email), ...additionalRecipients]
+      .map(email=>String(email || '').trim().toLowerCase())
+      .filter(Boolean))];
     if (!recipients.length) {
-      console.warn('Email notification skipped because no recipient is configured.');
+      console.warn('Email notification skipped because no active database recipient was found.');
       return false;
     }
     await mailer.sendMail({ from: process.env.MAIL_FROM, bcc: recipients.join(','), subject, text });
