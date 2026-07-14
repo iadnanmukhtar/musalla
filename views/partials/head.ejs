@@ -1,3 +1,29 @@
 <% const publicPage=typeof isPublic!=='undefined'&&isPublic; const pageDescription=typeof description!=='undefined'?description:'Musalla helps communities organize prayer leadership and connect with their local Musalla.'; const canonicalUrl=`${baseUrl}${typeof canonicalPath!=='undefined'?canonicalPath:path}`; %>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#08a1d4"><title><%= title %> · Musalla</title><meta name="description" content="<%= pageDescription %>"><meta name="robots" content="<%= publicPage?'index,follow':'noindex,nofollow' %>"><% if(typeof googleSiteVerification!=='undefined'&&googleSiteVerification){ %><meta name="google-site-verification" content="<%= googleSiteVerification %>"><% } %><link rel="canonical" href="<%= canonicalUrl %>"><meta property="og:type" content="website"><meta property="og:site_name" content="Musalla"><meta property="og:title" content="<%= title %> · Musalla"><meta property="og:description" content="<%= pageDescription %>"><meta property="og:url" content="<%= canonicalUrl %>"><meta name="twitter:card" content="summary"><% if(typeof structuredData!=='undefined'&&structuredData){ %><script type="application/ld+json"><%- JSON.stringify(structuredData).replace(/</g,'\\u003c') %></script><% } %><script async src="https://www.googletagmanager.com/gtag/js?id=G-WN0F9NNBRE"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-WN0F9NNBRE');</script><link rel="manifest" href="/manifest.json"><link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/musalla.css"></head><body><div class="app-shell">
-<% if (notice) { %><div class="notice"><%= notice %></div><% } %>
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+	<meta name="theme-color" content="#08a1d4">
+	<title><%= title %> · Musalla</title>
+	<meta name="description" content="<%= pageDescription %>">
+	<meta name="robots" content="<%= publicPage?'index,follow':'noindex,nofollow' %>">
+	<% if(typeof googleSiteVerification!=='undefined'&&googleSiteVerification){ %>
+	<meta name="google-site-verification" content="<%= googleSiteVerification %>"><% } %>
+	<link rel="canonical" href="<%= canonicalUrl %>">
+	<meta property="og:type" content="website">
+	<meta property="og:site_name" content="Musalla">
+	<meta property="og:title" content="<%= title %> · Musalla">
+	<meta property="og:description" content="<%= pageDescription %>">
+	<meta property="og:url" content="<%= canonicalUrl %>">
+	<meta name="twitter:card" content="summary"><% if(typeof structuredData!=='undefined'&&structuredData){ %>
+	<script type="application/ld+json"><%- JSON.stringify(structuredData).replace(/</g,'\\u003c') %></script><% } %>
+	<link rel="manifest" href="/manifest.json">
+	<link rel="icon" href="/favicon.ico" sizes="any">
+	<link rel="icon" href="/icon.svg" type="image/svg+xml">
+	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+	<link rel="stylesheet" href="/app.css">
+	<link rel="stylesheet" href="/musalla.css">
+</head>
+<body>
+	<div class="app-shell"> <% if (notice) { %><div class="notice"><%= notice %></div><% } %>
