@@ -257,7 +257,9 @@ app.post('/super-admin/musallas/:id', requireAuth, requireSuperAdmin, logoUpload
   const musalla = rows[0];
   if (!musalla) return res.sendStatus(404);
   const logoUrl = req.file ? `/uploads/musalla-logos/${req.file.filename}` : musalla.logo_url;
-  await pool.execute('UPDATE musalla_locations SET name=?,address=?,timetable_url=?,timezone=?,logo_url=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',req.body.timezone.trim()||'America/Chicago',logoUrl,req.params.id]);
+  const jumuahEnabled = [1,2,3].map(number => req.body[`jumuah_${number}_enabled`] === '1');
+  await pool.execute('UPDATE musalla_locations SET name=?,address=?,timetable_url=?,timezone=?,logo_url=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',req.body.timezone.trim()||'America/Chicago',logoUrl,...jumuahEnabled,req.params.id]);
+  await syncPrayerSchedules(req.params.id);
   req.session.notice='Musalla updated'; res.redirect(`/super-admin/musallas/${req.params.id}`);
 });
 app.post('/super-admin/musallas/:id/status', requireAuth, requireSuperAdmin, async (req, res) => {
