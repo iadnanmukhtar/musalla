@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const TEST_MODE = /^(1|true|yes)$/i.test(process.env.TEST_MODE || '');
 
 const pool = mysql.createPool({
   host: process.env.MYSQL_HOST,
@@ -24,10 +25,13 @@ async function initializeDatabase() {
       avatar_url TEXT,
       is_superuser BOOLEAN NOT NULL DEFAULT FALSE,
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+      is_test BOOLEAN NOT NULL DEFAULT FALSE,
       registration_completed BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [userTestColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_users' AND column_name='is_test'");
+  if (!userTestColumns.length) await pool.query('ALTER TABLE musalla_users ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE');
   const [registrationColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_users' AND column_name='registration_completed'");
   if (!registrationColumns.length) {
     await pool.query('ALTER TABLE musalla_users ADD COLUMN registration_completed BOOLEAN NOT NULL DEFAULT FALSE');
@@ -41,6 +45,7 @@ async function initializeDatabase() {
       timetable_url TEXT,
       logo_url TEXT,
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+      is_test BOOLEAN NOT NULL DEFAULT FALSE,
       timezone VARCHAR(100) NOT NULL DEFAULT 'America/Chicago',
       jumuah_1_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       jumuah_2_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -50,6 +55,8 @@ async function initializeDatabase() {
       CONSTRAINT fk_musalla_locations_creator FOREIGN KEY (created_by) REFERENCES musalla_users(id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [locationTestColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='is_test'");
+  if (!locationTestColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE');
   const [jumuahColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name LIKE 'jumuah_%_enabled'");
   const existingJumuahColumns = new Set(jumuahColumns.map(column => column.COLUMN_NAME));
   for (const column of ['jumuah_1_enabled','jumuah_2_enabled','jumuah_3_enabled']) {
@@ -95,6 +102,40 @@ async function initializeDatabase() {
     await pool.query("UPDATE musalla_prayer_slots SET prayer_name='Zuhr' WHERE prayer_name='Dhuhr'");
     await pool.query("ALTER TABLE musalla_prayer_slots MODIFY prayer_name ENUM('Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL");
   }
+  if (TEST_MODE) await seedTestData();
+}
+
+async function seedTestData() {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute("INSERT INTO musalla_users (email,name,bio,is_test,registration_completed) VALUES ('test-imam@musalla.local','Test Imam','Test-mode imam account',TRUE,TRUE) ON DUPLICATE KEY UPDATE name=VALUES(name),bio=VALUES(bio),is_test=TRUE,registration_completed=TRUE,is_disabled=FALSE");
+    await connection.execute("INSERT INTO musalla_users (email,name,bio,is_test,registration_completed) VALUES ('test-admin@musalla.local','Test Administrator','Test-mode administrator account',TRUE,TRUE) ON DUPLICATE KEY UPDATE name=VALUES(name),bio=VALUES(bio),is_test=TRUE,registration_completed=TRUE,is_disabled=FALSE");
+    const [users] = await connection.query("SELECT id,email FROM musalla_users WHERE email IN ('test-imam@musalla.local','test-admin@musalla.local') AND is_test=TRUE");
+    const userIds = Object.fromEntries(users.map(user => [user.email,user.id]));
+    const testMusallas = [
+      ['Test Musalla North','100 Test Avenue',true,false,false],
+      ['Test Musalla South','200 Test Boulevard',true,true,false]
+    ];
+    for (const [name,address,jumuah1,jumuah2,jumuah3] of testMusallas) {
+      const [existing] = await connection.execute('SELECT id FROM musalla_locations WHERE name=? AND is_test=TRUE LIMIT 1', [name]);
+      let musallaId = existing[0]?.id;
+      if (!musallaId) {
+        const [result] = await connection.execute('INSERT INTO musalla_locations (name,address,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled,created_by,is_test) VALUES (?,?,?,?,?,?,?,TRUE)', [name,address,'America/Chicago',jumuah1,jumuah2,jumuah3,userIds['test-admin@musalla.local']]);
+        musallaId = result.insertId;
+      } else {
+        await connection.execute('UPDATE musalla_locations SET address=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=?,is_disabled=FALSE WHERE id=?', [address,jumuah1,jumuah2,jumuah3,musallaId]);
+      }
+      await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'imam','active') ON DUPLICATE KEY UPDATE role='imam',status='active'", [userIds['test-imam@musalla.local'],musallaId]);
+      await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'imam,admin','active') ON DUPLICATE KEY UPDATE role='imam,admin',status='active'", [userIds['test-admin@musalla.local'],musallaId]);
+    }
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 const DAILY_PRAYERS = ['Fajr','Zuhr','Asr','Maghrib','Isha'];
@@ -117,7 +158,7 @@ function scheduleBounds(now = new Date(), timezone = 'America/Chicago') {
 
 async function syncPrayerSchedules(musallaId) {
   const params = [];
-  let sql = 'SELECT id,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE is_disabled=FALSE';
+  let sql = `SELECT id,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`;
   if (musallaId) { sql += ' AND id=?'; params.push(Number(musallaId)); }
   const [musallas] = await pool.execute(sql, params);
   const connection = await pool.getConnection();
@@ -156,4 +197,4 @@ async function syncPrayerSchedules(musallaId) {
   }
 }
 
-module.exports = { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules };
+module.exports = { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules, TEST_MODE };

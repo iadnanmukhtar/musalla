@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
-const { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules } = require('./db');
+const { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules, TEST_MODE } = require('./db');
 const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins } = require('./email');
 
 const app = express();
@@ -16,6 +16,7 @@ const port = Number(process.env.PORT || 3000);
 const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
 const logoDirectory = path.join(__dirname, '..', 'public', 'uploads', 'musalla-logos');
 const profilePhotoDirectory = path.join(__dirname, '..', 'public', 'uploads', 'profile-photos');
+const visibleMusalla = alias => TEST_MODE ? '1=1' : `${alias}.is_test=FALSE`;
 fs.mkdirSync(logoDirectory, { recursive: true });
 fs.mkdirSync(profilePhotoDirectory, { recursive: true });
 
@@ -60,7 +61,8 @@ passport.serializeUser((user, done) => done(null, user.id));
 passport.deserializeUser(async (id, done) => {
   try {
     const [rows] = await pool.execute('SELECT * FROM musalla_users WHERE id=?', [id]);
-    done(null, rows[0] || false);
+    const user = rows[0];
+    done(null, user && (TEST_MODE || !user.is_test) ? user : false);
   } catch (error) { done(error); }
 });
 
@@ -71,6 +73,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       if (!email) return done(new Error('Google account did not provide an email address'));
       let [rows] = await pool.execute('SELECT * FROM musalla_users WHERE google_id=? OR email=? LIMIT 1', [profile.id, email]);
       let user = rows[0];
+      if (user?.is_test && !TEST_MODE) return done(null, false, { message: 'Test accounts are disabled' });
       if (user) {
         await pool.execute("UPDATE musalla_users SET google_id=?,avatar_url=COALESCE(NULLIF(?,''),avatar_url) WHERE id=?", [profile.id, profile.photos?.[0]?.value || '', user.id]);
         [rows] = await pool.execute('SELECT * FROM musalla_users WHERE id=?', [user.id]);
@@ -124,7 +127,7 @@ async function updateMemberRoles(musallaId, userId, roles) {
 
 async function musallaAccess(req, res, next) {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  const [locations] = await pool.execute('SELECT is_disabled FROM musalla_locations WHERE id=?', [req.params.id]);
+  const [locations] = await pool.execute(`SELECT is_disabled FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
   if (!locations[0]) return res.sendStatus(404);
   if (locations[0].is_disabled) return res.status(403).render('message', { title: 'Musalla unavailable', message: 'This Musalla has been disabled.' });
   const [memberships] = await pool.execute("SELECT * FROM musalla_memberships WHERE user_id=? AND musalla_id=? AND status='active'", [req.user.id, req.params.id]);
@@ -175,7 +178,16 @@ app.use(async (req, res, next) => {
     next();
   } catch (error) { next(error); }
 });
-app.get('/login', (req, res) => res.render('login', { googleReady: Boolean(process.env.GOOGLE_CLIENT_ID) }));
+app.get('/login', (req, res) => res.render('login', { googleReady: Boolean(process.env.GOOGLE_CLIENT_ID), testMode: TEST_MODE }));
+app.post('/auth/test/:role', async (req, res, next) => {
+  if (!TEST_MODE || !['imam','admin'].includes(req.params.role)) return res.sendStatus(404);
+  try {
+    const email = `test-${req.params.role}@musalla.local`;
+    const [rows] = await pool.execute('SELECT * FROM musalla_users WHERE email=? AND is_test=TRUE AND is_disabled=FALSE', [email]);
+    if (!rows[0]) return res.status(503).render('message', { title: 'Test account unavailable', message: 'Restart the app to seed test accounts.' });
+    req.login(rows[0], error => error ? next(error) : res.redirect('/'));
+  } catch (error) { next(error); }
+});
 app.get('/auth/google', (req, res, next) => {
   if (!process.env.GOOGLE_CLIENT_ID) return res.redirect('/login');
   req.session.authRedirect = req.query.next==='/register-musalla' ? '/register-musalla' : '/';
@@ -204,11 +216,11 @@ app.post('/view-mode', requireAuth, async (req, res) => {
 });
 
 app.get('/super-admin', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [musallas] = await pool.query(`SELECT m.*,COUNT(DISTINCT CASE WHEN ms.status IN ('active','disabled') THEN ms.user_id END) member_count,COUNT(DISTINCT CASE WHEN p.imam_user_id IS NOT NULL THEN p.id END) assignment_count FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id LEFT JOIN musalla_prayer_slots p ON p.musalla_id=m.id GROUP BY m.id ORDER BY m.is_disabled,m.name`);
+  const [musallas] = await pool.query(`SELECT m.*,COUNT(DISTINCT CASE WHEN ms.status IN ('active','disabled') THEN ms.user_id END) member_count,COUNT(DISTINCT CASE WHEN p.imam_user_id IS NOT NULL THEN p.id END) assignment_count FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id LEFT JOIN musalla_prayer_slots p ON p.musalla_id=m.id WHERE ${visibleMusalla('m')} GROUP BY m.id ORDER BY m.is_disabled,m.name`);
   res.render('super-admin', { musallas });
 });
 app.get('/super-admin/musallas/:id', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [rows] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
+  const [rows] = await pool.execute(`SELECT * FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
   if (!rows[0]) return res.sendStatus(404);
   const [members] = await pool.execute("SELECT u.id,u.name,u.email,u.avatar_url,IF(ms.role='','Member',ms.role) role,ms.status FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status IN ('active','disabled') ORDER BY ms.status,ms.role,u.name", [req.params.id]);
   const [requests] = await pool.execute("SELECT u.id,u.name,u.email,u.avatar_url FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status='pending' ORDER BY u.name", [req.params.id]);
@@ -230,7 +242,7 @@ app.post('/super-admin/musallas/:id/membership-requests/:userId/deny', requireAu
   res.redirect(`/super-admin/musallas/${req.params.id}`);
 });
 app.get('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [rows] = await pool.execute("SELECT u.id,u.name,u.email,u.phone,u.bio,u.avatar_url,ms.role,ms.status,m.name musalla_name,m.id musalla_id FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('active','disabled')", [req.params.id,req.params.userId]);
+  const [rows] = await pool.execute(`SELECT u.id,u.name,u.email,u.phone,u.bio,u.avatar_url,ms.role,ms.status,m.name musalla_name,m.id musalla_id FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('active','disabled') AND ${visibleMusalla('m')}`, [req.params.id,req.params.userId]);
   if (!rows[0]) return res.sendStatus(404);
   res.type('html').set('Content-Disposition','inline').render('member-profile', { member: rows[0], isSuperAdmin: true, formAction: `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`, backUrl: `/super-admin/musallas/${req.params.id}` });
 });
@@ -241,7 +253,7 @@ app.post('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requi
   req.session.notice='Member roles updated'; res.redirect(`/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`);
 });
 app.post('/super-admin/musallas/:id', requireAuth, requireSuperAdmin, logoUpload.single('logo'), async (req, res) => {
-  const [rows] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
+  const [rows] = await pool.execute(`SELECT * FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
   const musalla = rows[0];
   if (!musalla) return res.sendStatus(404);
   const logoUrl = req.file ? `/uploads/musalla-logos/${req.file.filename}` : musalla.logo_url;
@@ -249,7 +261,7 @@ app.post('/super-admin/musallas/:id', requireAuth, requireSuperAdmin, logoUpload
   req.session.notice='Musalla updated'; res.redirect(`/super-admin/musallas/${req.params.id}`);
 });
 app.post('/super-admin/musallas/:id/status', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [rows] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
+  const [rows] = await pool.execute(`SELECT * FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
   const musalla = rows[0];
   if (!musalla) return res.sendStatus(404);
   const disabling = !musalla.is_disabled;
@@ -264,7 +276,7 @@ app.post('/super-admin/musallas/:id/status', requireAuth, requireSuperAdmin, asy
   req.session.notice=disabling?'Musalla disabled and imams unslotted':'Musalla enabled'; res.redirect('/super-admin');
 });
 app.post('/super-admin/musallas/:id/delete', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [rows] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
+  const [rows] = await pool.execute(`SELECT * FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
   const musalla = rows[0];
   if (!musalla) return res.sendStatus(404);
   await pool.execute('DELETE FROM musalla_locations WHERE id=?', [req.params.id]);
@@ -275,19 +287,20 @@ app.post('/super-admin/musallas/:id/delete', requireAuth, requireSuperAdmin, asy
 app.get('/', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
   if (!req.user.registration_completed) return res.redirect('/register/musallas');
-  const [musallas] = await pool.execute(`SELECT m.*,IF(ms.role='','Member',ms.role) role FROM musalla_locations m JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE ms.status='active' AND m.is_disabled=FALSE ORDER BY CASE WHEN FIND_IN_SET('imam',ms.role)>0 OR FIND_IN_SET('admin',ms.role)>0 THEN 0 ELSE 1 END,m.name`, [req.user.id]);
-  const [requests] = await pool.execute(`SELECT m.id,m.name,ms.status FROM musalla_memberships ms JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.user_id=? AND ms.status IN ('pending','denied') AND m.is_disabled=FALSE ORDER BY m.name`, [req.user.id]);
+  const [musallas] = await pool.execute(`SELECT m.*,IF(ms.role='','Member',ms.role) role FROM musalla_locations m JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE ms.status='active' AND m.is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY CASE WHEN FIND_IN_SET('imam',ms.role)>0 OR FIND_IN_SET('admin',ms.role)>0 THEN 0 ELSE 1 END,m.name`, [req.user.id]);
+  const [requests] = await pool.execute(`SELECT m.id,m.name,ms.status FROM musalla_memberships ms JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.user_id=? AND ms.status IN ('pending','denied') AND m.is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY m.name`, [req.user.id]);
   res.render('dashboard', { musallas, requests });
 });
 app.get('/membership-requests', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  const [musallas] = await pool.execute(`SELECT m.id,m.name,m.address,m.logo_url,ms.status FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE ORDER BY CASE ms.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 WHEN 'disabled' THEN 2 WHEN 'denied' THEN 3 ELSE 4 END,m.name`, [req.user.id]);
+  const [musallas] = await pool.execute(`SELECT m.id,m.name,m.address,m.logo_url,ms.status FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY CASE ms.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 WHEN 'disabled' THEN 2 WHEN 'denied' THEN 3 ELSE 4 END,m.name`, [req.user.id]);
   res.render('membership-requests', { musallas });
 });
 app.post('/membership-requests/:id', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  const [locations] = await pool.execute('SELECT id,name FROM musalla_locations WHERE id=? AND is_disabled=FALSE', [req.params.id]);
+  const [locations] = await pool.execute(`SELECT id,name,is_test FROM musalla_locations m WHERE id=? AND is_disabled=FALSE AND ${visibleMusalla('m')}`, [req.params.id]);
   if (!locations[0]) return res.sendStatus(404);
+  if (req.user.is_test && !locations[0].is_test) return res.sendStatus(403);
   const [existing] = await pool.execute('SELECT status FROM musalla_memberships WHERE user_id=? AND musalla_id=?', [req.user.id,req.params.id]);
   await pool.execute(`INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending') ON DUPLICATE KEY UPDATE status=IF(status IN ('active','disabled'),status,'pending')`, [req.user.id,req.params.id]);
   if (!existing[0] || existing[0].status==='denied') await notifyMusallaAdminsAndSuperAdmins(pool, locations[0].id, {
@@ -305,7 +318,7 @@ app.post('/membership-requests/:id/cancel', requireAuth, async (req, res) => {
 app.get('/register/musallas', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
   if (req.user.registration_completed) return res.redirect('/');
-  const [musallas] = await pool.query('SELECT id,name,address,logo_url FROM musalla_locations WHERE is_disabled=FALSE ORDER BY name');
+  const [musallas] = await pool.query(`SELECT id,name,address,logo_url FROM musalla_locations m WHERE is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY name`);
   res.render('register-musallas', { musallas });
 });
 app.post('/register/musallas', requireAuth, async (req, res) => {
@@ -315,7 +328,8 @@ app.post('/register/musallas', requireAuth, async (req, res) => {
   const requested = (Array.isArray(submittedIds)?submittedIds:[submittedIds]).filter(Boolean).map(Number).filter(Number.isInteger);
   const ids = [...new Set(requested)];
   if (!ids.length) { req.session.notice='Select at least one Musalla'; return res.redirect('/register/musallas'); }
-  const [available] = await pool.query('SELECT id,name FROM musalla_locations WHERE is_disabled=FALSE AND id IN (?)', [ids]);
+  const [available] = await pool.query(`SELECT id,name,is_test FROM musalla_locations m WHERE is_disabled=FALSE AND id IN (?) AND ${visibleMusalla('m')}`, [ids]);
+  if (req.user.is_test && available.some(musalla => !musalla.is_test)) { req.session.notice='Test users can only join test Musallas'; return res.redirect('/register/musallas'); }
   if (!available.length) { req.session.notice='Select at least one available Musalla'; return res.redirect('/register/musallas'); }
   const connection = await pool.getConnection();
   const newRequests = [];
@@ -352,7 +366,7 @@ app.post('/musallas', requireAuth, async (req, res) => {
   let id;
   try {
     await connection.beginTransaction();
-    const [result] = await connection.execute('INSERT INTO musalla_locations (name,address,timetable_url,timezone,created_by) VALUES (?,?,?,?,?)', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',req.body.timezone||'America/Chicago',req.user.id]);
+    const [result] = await connection.execute('INSERT INTO musalla_locations (name,address,timetable_url,timezone,created_by,is_test) VALUES (?,?,?,?,?,?)', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',req.body.timezone||'America/Chicago',req.user.id,Boolean(req.user.is_test)]);
     id = result.insertId;
     if (!isSuperAdminRegistration) await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending')", [req.user.id,id]);
     await connection.execute('UPDATE musalla_users SET registration_completed=TRUE WHERE id=?', [req.user.id]);

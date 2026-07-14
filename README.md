@@ -25,6 +25,12 @@ npm run dev
 
 Open http://localhost:3000 and sign in with Google.
 
+## Test mode
+
+Set `TEST_MODE=true` in `.env` and restart the app. The login page will offer test Imam and test Administrator accounts. Startup seeds two Musallas flagged with `is_test=TRUE`; both test users are active members of both Musallas. Existing production data remains visible in test mode.
+
+With `TEST_MODE=false`, test login is disabled, test users cannot authenticate, and Musallas flagged as test data are excluded from application queries. The `musalla_users` and `musalla_locations` tables store this boundary in their `is_test` columns.
+
 ## Configure MySQL
 
 Set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` in `.env`. The app creates isolated `musalla_*` tables automatically at startup.
