@@ -1,13 +1,14 @@
 <%- include('partials/head',{title:'Choose a Musalla'}) %><%- include('partials/nav') %>
 <main>
-  <header class="page-head"><p class="eyebrow">WELCOME</p><h1>Find your Musalla</h1><p>Request to join an existing Musalla, or register a new one if it is not listed yet.</p></header>
+  <% const pendingMusallas=musallas.filter(m=>m.status==='pending'); %>
+  <header class="page-head"><p class="eyebrow">WELCOME</p><h1><%= pendingMusallas.length?'Approval pending':'Find your Musalla' %></h1><p><%= pendingMusallas.length?'Your membership request is pending approval. You may also request another Musalla or register a new one.':'Request to join an existing Musalla, or register a new one if it is not listed yet.' %></p></header>
   <form action="/register/musallas" method="post" class="registration-form" id="registration-form" data-confirm-title="Send membership request?" data-confirm="Your request will be sent to the selected Musalla administrators for approval." data-confirm-button="Send request">
     <div class="registration-musallas">
-      <% musallas.forEach(m=>{ %><label class="registration-card"><input type="checkbox" name="musalla_ids" value="<%= m.id %>"><span class="mosque-icon"><% if(m.logo_url){ %><img src="<%= m.logo_url %>" alt=""><% } else { %>⌂<% } %></span><span><b><%= m.name %></b><small><%= m.address||'Address not set' %></small></span></label><% }) %>
+      <% musallas.forEach(m=>{ const isPending=m.status==='pending'; %><label class="registration-card <%= isPending?'pending-registration':'' %>"><% if(isPending){ %><span class="registration-status-mark" aria-hidden="true">⌛</span><% } else { %><input type="checkbox" name="musalla_ids" value="<%= m.id %>"><% } %><span class="mosque-icon"><% if(m.logo_url){ %><img src="<%= m.logo_url %>" alt=""><% } else { %>⌂<% } %></span><span><b><%= m.name %></b><small><%= m.address||'Address not set' %></small><% if(isPending){ %><strong class="pending-label">Pending approval</strong><% } else if(m.status==='denied'){ %><strong class="denied-label">Request again</strong><% } %></span></label><% }) %>
       <% if(!musallas.length){ %><div class="empty">No Musallas are currently available. Please contact an administrator.</div><% } %>
     </div>
     <p class="form-error" id="registration-error" hidden>Select at least one Musalla.</p>
-    <button class="button" <%= !musallas.length?'disabled':'' %>>Send request</button>
+    <button class="button" <%= !musallas.some(m=>m.status!=='pending')?'disabled':'' %>>Send request</button>
   </form>
   <div class="onboarding-choice"><span>or</span></div>
   <section class="surface onboarding-register"><h2>Register a new Musalla</h2><p>The Musalla will be added immediately. Since you will be its first member, a super admin must approve your membership and role.</p><a class="button secondary" href="/register-musalla">Register a Musalla</a></section>

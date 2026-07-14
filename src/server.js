@@ -366,8 +366,8 @@ app.get('/', async (req, res) => {
     return res.status(403).render('message', { title: 'Access disabled', message: 'Please contact an administrator.' });
   }
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  if (!req.user.registration_completed) return res.redirect('/register/musallas');
   const [musallas] = await pool.execute(`SELECT m.*,IF(ms.role='','Member',ms.role) role,(SELECT COUNT(*) FROM musalla_memberships members WHERE members.musalla_id=m.id AND members.status='active') member_count FROM musalla_locations m JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE ms.status='active' AND m.is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY CASE WHEN FIND_IN_SET('imam',ms.role)>0 OR FIND_IN_SET('admin',ms.role)>0 THEN 0 ELSE 1 END,m.name`, [req.user.id]);
+  if (!musallas.length) return res.redirect('/register/musallas');
   const [requests] = await pool.execute(`SELECT m.id,m.name,ms.status FROM musalla_memberships ms JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.user_id=? AND ms.status IN ('pending','denied') AND m.is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY m.name`, [req.user.id]);
   res.render('dashboard', { musallas,requests });
 });
@@ -411,13 +411,15 @@ app.post('/membership-requests/:id/cancel', requireAuth, async (req, res) => {
 });
 app.get('/register/musallas', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  if (req.user.registration_completed) return res.redirect('/');
-  const [musallas] = await pool.query(`SELECT id,name,address,logo_url FROM musalla_locations m WHERE is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY name`);
+  const [active] = await pool.execute("SELECT 1 FROM musalla_memberships WHERE user_id=? AND status='active' LIMIT 1", [req.user.id]);
+  if (active[0]) return res.redirect('/');
+  const [musallas] = await pool.execute(`SELECT m.id,m.name,m.address,m.logo_url,ms.status FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE AND (ms.status IS NULL OR ms.status IN ('pending','denied')) AND ${visibleMusalla('m')} ORDER BY CASE ms.status WHEN 'pending' THEN 0 WHEN 'denied' THEN 1 ELSE 2 END,m.name`, [req.user.id]);
   res.render('register-musallas', { musallas });
 });
 app.post('/register/musallas', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  if (req.user.registration_completed) return res.redirect('/');
+  const [active] = await pool.execute("SELECT 1 FROM musalla_memberships WHERE user_id=? AND status='active' LIMIT 1", [req.user.id]);
+  if (active[0]) return res.redirect('/');
   const submittedIds = req.body?.musalla_ids;
   const requested = (Array.isArray(submittedIds)?submittedIds:[submittedIds]).filter(Boolean).map(Number).filter(Number.isInteger);
   const ids = [...new Set(requested)];
@@ -430,7 +432,7 @@ app.post('/register/musallas', requireAuth, async (req, res) => {
   try {
     await connection.beginTransaction();
     for (const musalla of available) {
-      const [result] = await connection.execute("INSERT IGNORE INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending')", [req.user.id,musalla.id]);
+      const [result] = await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending') ON DUPLICATE KEY UPDATE status=IF(status='denied','pending',status)", [req.user.id,musalla.id]);
       if (result.affectedRows) newRequests.push(musalla);
     }
     await connection.execute('UPDATE musalla_users SET registration_completed=TRUE WHERE id=?', [req.user.id]);
