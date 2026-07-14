@@ -11,14 +11,14 @@
         <div class="membership-request initial-approval">
           <div><b><%= request.name %></b><small><%= request.email %></small></div>
           <div class="request-actions">
-            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack">
+            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack" data-confirm-title="Approve <%= request.name %>?" data-confirm="This membership will be activated with the selected roles." data-confirm-button="Approve membership">
               <div class="role-options">
                 <label class="role-option"><input type="checkbox" name="roles" value="imam"> Imam</label>
                 <label class="role-option"><input type="checkbox" name="roles" value="admin"> Administrator</label>
               </div>
               <button class="button chip approve">Approve membership</button>
             </form>
-            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/deny" method="post"><button class="chip danger">Deny</button></form>
+            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/deny" method="post" data-confirm-title="Deny <%= request.name %>?" data-confirm="This membership request will be denied." data-confirm-button="Deny request" data-confirm-style="danger"><button class="chip danger">Deny</button></form>
           </div>
         </div>
       <% }) %>

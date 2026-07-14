@@ -104,7 +104,6 @@ Membership notifications go to every active administrator of the affected Musall
 | `PORT` | HTTP server port |
 | `BASE_URL` | Public origin used for OAuth callbacks, emails, and invitations |
 | `SESSION_SECRET` | Secret used to sign sessions |
-| `NODE_ENV` | Runtime environment |
 | `TEST_MODE` | Enables isolated test accounts and Musallas |
 | `MYSQL_HOST` | MySQL host |
 | `MYSQL_PORT` | MySQL port |
@@ -129,8 +128,7 @@ Musalla includes a web-app manifest, service worker, application icons, and iOS 
 For production:
 
 - Serve the application over HTTPS.
-- Set `NODE_ENV=production` and `TEST_MODE=false`.
+- Set `BASE_URL` to the public HTTPS origin and `TEST_MODE=false`.
 - Use a strong, unique `SESSION_SECRET`.
-- Set `BASE_URL` to the public HTTPS origin.
 - Replace the default in-memory session store with a persistent store.
 - Use durable shared storage for uploaded profile photos and Musalla logos when running multiple application instances.

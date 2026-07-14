@@ -2,10 +2,12 @@
 <main>
   <a class="back" href="<%= backUrl %>">‹ Back to members</a>
   <header class="member-profile-head"><span class="profile-avatar"><% if(member.avatar_url){ %><img src="<%= member.avatar_url %>" alt=""><% } else { %><%= member.name[0] %><% } %></span><div><p class="eyebrow"><%= isSuperAdmin?'SUPER ADMIN':'MUSALLA ADMIN' %></p><h1><%= member.name %></h1><p><%= member.email %></p></div></header>
-  <section class="surface member-details"><h2>Profile</h2><dl><div><dt>Phone</dt><dd><%= member.phone||'Not provided' %></dd></div><div><dt>Bio</dt><dd><%= member.bio||'Not provided' %></dd></div><div><dt>Musalla</dt><dd><%= member.musalla_name %></dd></div></dl></section>
-  <form action="<%= formAction %>" method="post" class="surface stack role-form">
+  <section class="surface member-details"><h2>Profile</h2><dl><div><dt>Status</dt><dd><%= member.status==='pending'?'Pending approval':member.status %></dd></div><div><dt>Phone</dt><dd><%= member.phone||'Not provided' %></dd></div><div><dt>Bio</dt><dd><%= member.bio||'Not provided' %></dd></div><div><dt>Musalla</dt><dd><%= member.musalla_name %></dd></div></dl></section>
+  <% if(member.status!=='pending'){ %>
+  <form action="<%= formAction %>" method="post" class="surface stack role-form" data-confirm-title="Update member roles?" data-confirm="The selected roles will replace this member's current roles." data-confirm-button="Update roles">
     <fieldset><legend>Roles</legend><p>Select one or more roles for this member at <%= member.musalla_name %>.</p><label class="role-option"><input type="checkbox" name="roles" value="imam" <%= member.role.split(',').includes('imam')?'checked':'' %>><span><b>Imam</b><small>Can volunteer to lead prayers.</small></span></label><label class="role-option"><input type="checkbox" name="roles" value="admin" <%= member.role.split(',').includes('admin')?'checked':'' %>><span><b>Administrator</b><small>Can manage the Musalla and its members.</small></span></label></fieldset>
     <button class="button">Save roles</button>
   </form>
+  <% } %>
 </main>
 <%- include('partials/foot') %>

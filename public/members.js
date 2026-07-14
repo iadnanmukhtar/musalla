@@ -4,12 +4,9 @@
   const card = dialog.querySelector('.dialog-card');
   const message = card.dataset.inviteMessage;
   const messageField = dialog.querySelector('#invite-message');
-  const whatsapp = dialog.querySelector('#share-whatsapp');
   const shareButton = dialog.querySelector('#share-invite');
   const feedback = dialog.querySelector('#invite-feedback');
   messageField.value = message;
-  whatsapp.href = `https://wa.me/?text=${encodeURIComponent(message)}`;
-
   document.querySelector('#open-invite').addEventListener('click', () => dialog.showModal());
   document.querySelector('#close-invite').addEventListener('click', () => dialog.close());
   shareButton.addEventListener('click', async () => {
