@@ -1,4 +1,4 @@
-<% if(user){ %>
+<% if(user && !hideNavigation){ %>
   <nav class="bottom-nav">
     <% if(superAdminMode){ %>
       <a class="<%= path.startsWith('/super-admin')?'active':'' %>" href="/super-admin"><span>⚙</span>Super Admin</a>

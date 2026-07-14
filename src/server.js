@@ -159,6 +159,7 @@ app.use(async (req, res, next) => {
     res.locals.path = req.path;
     res.locals.musallaNav = null;
     res.locals.canManageMembers = false;
+    res.locals.hideNavigation = false;
     res.locals.superAdminMode = isSuperAdminMode(req);
     res.locals.canSwitchToMember = false;
     if (req.user?.is_superuser) {
@@ -295,6 +296,12 @@ app.post('/membership-requests/:id', requireAuth, async (req, res) => {
   });
   req.session.notice='Membership request sent'; res.redirect('/membership-requests');
 });
+app.post('/membership-requests/:id/cancel', requireAuth, async (req, res) => {
+  if (isSuperAdminMode(req)) return res.redirect('/super-admin');
+  const [result] = await pool.execute("DELETE FROM musalla_memberships WHERE user_id=? AND musalla_id=? AND status='pending'", [req.user.id,req.params.id]);
+  req.session.notice=result.affectedRows?'Membership request cancelled':'Membership request is no longer pending';
+  res.redirect(req.body.return_to==='/'?'/':'/membership-requests');
+});
 app.get('/register/musallas', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
   if (req.user.registration_completed) return res.redirect('/');
@@ -334,24 +341,33 @@ app.post('/profile', requireAuth, profilePhotoUpload.single('profile_photo'), as
   await pool.execute('UPDATE musalla_users SET name=?,phone=?,bio=?,avatar_url=? WHERE id=?', [req.body.name.trim(),req.body.phone.trim(),req.body.bio.trim(),avatarUrl,req.user.id]);
   req.session.notice='Profile updated'; res.redirect('/profile');
 });
-app.get('/register-musalla', requireAuth, (req, res) => res.render('register-musalla'));
+app.get('/register-musalla', requireAuth, (req, res) => {
+  const canCancel = Boolean(req.user.registration_completed);
+  res.locals.hideNavigation = !canCancel;
+  res.render('register-musalla', { canCancel, isSuperAdminRegistration: Boolean(req.user.is_superuser) });
+});
 app.post('/musallas', requireAuth, async (req, res) => {
-  if (isSuperAdminMode(req)) return res.redirect('/super-admin');
+  const isSuperAdminRegistration = Boolean(req.user.is_superuser);
   const connection = await pool.getConnection();
   let id;
   try {
     await connection.beginTransaction();
     const [result] = await connection.execute('INSERT INTO musalla_locations (name,address,timetable_url,timezone,created_by) VALUES (?,?,?,?,?)', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',req.body.timezone||'America/Chicago',req.user.id]);
     id = result.insertId;
-    await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending')", [req.user.id,id]);
+    if (!isSuperAdminRegistration) await connection.execute("INSERT INTO musalla_memberships (user_id,musalla_id,role,status) VALUES (?,?,'','pending')", [req.user.id,id]);
     await connection.execute('UPDATE musalla_users SET registration_completed=TRUE WHERE id=?', [req.user.id]);
     await connection.commit();
   } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   await syncPrayerSchedules(id);
-  await notifySuperAdmins(pool, {
+  if (!isSuperAdminRegistration) await notifySuperAdmins(pool, {
     subject: `New Musalla registered: ${req.body.name.trim()}`,
     text: `${req.user.name} (${req.user.email}) registered ${req.body.name.trim()} at ${req.body.address.trim() || 'an address not yet provided'}.\n\nReview the Musalla and its initial membership: ${baseUrl}/super-admin/musallas/${id}`
   });
+  if (isSuperAdminRegistration) {
+    req.session.viewMode='super';
+    req.session.notice='Musalla created';
+    return res.redirect(`/super-admin/musallas/${id}`);
+  }
   req.session.notice='Musalla created. A super admin must approve its initial membership.'; res.redirect('/');
 });
 app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
@@ -360,7 +376,7 @@ app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
   const { firstDate,lastDate,today } = scheduleBounds(new Date(),musalla.timezone);
   const requestedDate = req.query.navigate || req.query.date || today;
   const date = requestedDate >= firstDate && requestedDate <= lastDate ? requestedDate : today;
-  const [slots] = await pool.execute(`SELECT p.*,u.name imam_name,u.avatar_url FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date=? ORDER BY FIELD(p.prayer_name,'Fajr','Dhuhr','Asr','Maghrib','Isha')`, [req.params.id,date]);
+  const [slots] = await pool.execute(`SELECT p.*,u.name imam_name,u.avatar_url FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date=? ORDER BY FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [req.params.id,date]);
   const isAdmin = hasRole(req.membership, 'admin');
   const canLead = hasRole(req.membership, 'imam');
   res.locals.musallaNav=musalla;
@@ -416,7 +432,9 @@ app.post('/musallas/:id/members/:userId/profile', requireAuth, musallaAccess, re
 app.post('/musallas/:id/profile', requireAuth, musallaAccess, requireAdmin, logoUpload.single('logo'), async (req, res) => {
   const [rows] = await pool.execute('SELECT logo_url FROM musalla_locations WHERE id=?', [req.params.id]);
   const logoUrl = req.file ? `/uploads/musalla-logos/${req.file.filename}` : rows[0].logo_url;
-  await pool.execute('UPDATE musalla_locations SET name=?,address=?,timetable_url=?,logo_url=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',logoUrl,req.params.id]);
+  const jumuahEnabled = [1,2,3].map(number => req.body[`jumuah_${number}_enabled`] === '1');
+  await pool.execute('UPDATE musalla_locations SET name=?,address=?,timetable_url=?,logo_url=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.timetable_url?.trim()||'',logoUrl,...jumuahEnabled,req.params.id]);
+  await syncPrayerSchedules(req.params.id);
   req.session.notice='Musalla profile updated'; res.redirect(`/musallas/${req.params.id}/profile`);
 });
 app.post('/musallas/:id/slots/:slotId/opt-in', requireAuth, musallaAccess, requireImam, async (req, res) => {

@@ -42,11 +42,19 @@ async function initializeDatabase() {
       logo_url TEXT,
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
       timezone VARCHAR(100) NOT NULL DEFAULT 'America/Chicago',
+      jumuah_1_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      jumuah_2_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      jumuah_3_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       created_by BIGINT UNSIGNED NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT fk_musalla_locations_creator FOREIGN KEY (created_by) REFERENCES musalla_users(id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [jumuahColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name LIKE 'jumuah_%_enabled'");
+  const existingJumuahColumns = new Set(jumuahColumns.map(column => column.COLUMN_NAME));
+  for (const column of ['jumuah_1_enabled','jumuah_2_enabled','jumuah_3_enabled']) {
+    if (!existingJumuahColumns.has(column)) await pool.query(`ALTER TABLE musalla_locations ADD COLUMN ${column} BOOLEAN NOT NULL DEFAULT FALSE`);
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS musalla_memberships (
       user_id BIGINT UNSIGNED NOT NULL,
@@ -72,7 +80,7 @@ async function initializeDatabase() {
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       musalla_id BIGINT UNSIGNED NOT NULL,
       prayer_date DATE NOT NULL,
-      prayer_name ENUM('Fajr','Dhuhr','Asr','Maghrib','Isha') NOT NULL,
+      prayer_name ENUM('Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL,
       imam_user_id BIGINT UNSIGNED NULL,
       notes VARCHAR(500) NOT NULL DEFAULT '',
       UNIQUE KEY uq_musalla_prayer (musalla_id,prayer_date,prayer_name),
@@ -81,9 +89,15 @@ async function initializeDatabase() {
       CONSTRAINT fk_musalla_slots_imam FOREIGN KEY (imam_user_id) REFERENCES musalla_users(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [prayerColumns] = await pool.query("SELECT COLUMN_TYPE FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_prayer_slots' AND column_name='prayer_name'");
+  if (prayerColumns[0]?.COLUMN_TYPE.includes("'Dhuhr'")) {
+    await pool.query("ALTER TABLE musalla_prayer_slots MODIFY prayer_name ENUM('Fajr','Dhuhr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL");
+    await pool.query("UPDATE musalla_prayer_slots SET prayer_name='Zuhr' WHERE prayer_name='Dhuhr'");
+    await pool.query("ALTER TABLE musalla_prayer_slots MODIFY prayer_name ENUM('Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL");
+  }
 }
 
-const PRAYERS = ['Fajr','Dhuhr','Asr','Maghrib','Isha'];
+const DAILY_PRAYERS = ['Fajr','Zuhr','Asr','Maghrib','Isha'];
 const isoDate = date => date.toISOString().slice(0, 10);
 
 function localIsoDate(now, timezone) {
@@ -103,7 +117,7 @@ function scheduleBounds(now = new Date(), timezone = 'America/Chicago') {
 
 async function syncPrayerSchedules(musallaId) {
   const params = [];
-  let sql = 'SELECT id,timezone FROM musalla_locations WHERE is_disabled=FALSE';
+  let sql = 'SELECT id,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE is_disabled=FALSE';
   if (musallaId) { sql += ' AND id=?'; params.push(Number(musallaId)); }
   const [musallas] = await pool.execute(sql, params);
   const connection = await pool.getConnection();
@@ -113,11 +127,24 @@ async function syncPrayerSchedules(musallaId) {
       const { firstDate, lastDate } = scheduleBounds(new Date(), timezone);
       await connection.execute('DELETE FROM musalla_prayer_slots WHERE musalla_id=? AND (prayer_date<? OR prayer_date>?)', [id, firstDate, lastDate]);
       const values = [];
+      const desiredKeys = new Set();
       const date = new Date(`${firstDate}T12:00:00Z`);
       while (isoDate(date) <= lastDate) {
-        for (const prayer of PRAYERS) values.push([id, isoDate(date), prayer]);
+        const dateValue = isoDate(date);
+        const musalla = musallas.find(item => Number(item.id) === Number(id));
+        const enabledJumuah = [1,2,3].filter(number => musalla[`jumuah_${number}_enabled`]).map(number => `Jumuah ${number}`);
+        const prayers = date.getUTCDay() === 5 && enabledJumuah.length
+          ? ['Fajr', ...enabledJumuah, 'Asr','Maghrib','Isha']
+          : DAILY_PRAYERS;
+        for (const prayer of prayers) {
+          values.push([id, dateValue, prayer]);
+          desiredKeys.add(`${dateValue}|${prayer}`);
+        }
         date.setUTCDate(date.getUTCDate() + 1);
       }
+      const [currentSlots] = await connection.execute('SELECT id,prayer_date,prayer_name FROM musalla_prayer_slots WHERE musalla_id=? AND prayer_date BETWEEN ? AND ?', [id, firstDate, lastDate]);
+      const obsoleteIds = currentSlots.filter(slot => !desiredKeys.has(`${slot.prayer_date}|${slot.prayer_name}`)).map(slot => slot.id);
+      if (obsoleteIds.length) await connection.query('DELETE FROM musalla_prayer_slots WHERE id IN (?)', [obsoleteIds]);
       if (values.length) await connection.query('INSERT IGNORE INTO musalla_prayer_slots (musalla_id,prayer_date,prayer_name) VALUES ?', [values]);
     }
     await connection.commit();

@@ -8,7 +8,7 @@
       <h2>Initial membership requests</h2>
       <p>The Musalla does not have an administrator yet. As a super admin, approve its first member and assign the Imam role, Administrator role, or both.</p>
       <% requests.forEach(request=>{ %>
-        <div class="membership-request">
+        <div class="membership-request initial-approval">
           <div><b><%= request.name %></b><small><%= request.email %></small></div>
           <div class="request-actions">
             <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack">
