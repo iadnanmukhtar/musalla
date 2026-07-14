@@ -14,6 +14,7 @@ const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins } = require('./emai
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
+const absoluteUrl = value => new URL(value || '/icon-192.png', `${baseUrl}/`).href;
 const logoDirectory = path.join(__dirname, '..', 'public', 'uploads', 'musalla-logos');
 const profilePhotoDirectory = path.join(__dirname, '..', 'public', 'uploads', 'profile-photos');
 const visibleMusalla = alias => TEST_MODE ? '1=1' : `${alias}.is_test=FALSE`;
@@ -49,6 +50,7 @@ const profilePhotoUpload = multer({
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '..', 'views'));
+app.set('trust proxy', 1);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -314,7 +316,7 @@ app.get('/membership-requests', requireAuth, async (req, res) => {
 });
 app.post('/membership-requests/:id', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  const [locations] = await pool.execute(`SELECT id,name,is_test FROM musalla_locations m WHERE id=? AND is_disabled=FALSE AND ${visibleMusalla('m')}`, [req.params.id]);
+  const [locations] = await pool.execute(`SELECT id,name,is_test,logo_url FROM musalla_locations m WHERE id=? AND is_disabled=FALSE AND ${visibleMusalla('m')}`, [req.params.id]);
   if (!locations[0]) return res.sendStatus(404);
   if (req.user.is_test && !locations[0].is_test) return res.sendStatus(403);
   const requestedRole = req.body.requested_role === 'imam' ? 'imam' : '';
@@ -322,7 +324,18 @@ app.post('/membership-requests/:id', requireAuth, async (req, res) => {
   await pool.execute(`INSERT INTO musalla_memberships (user_id,musalla_id,role,requested_role,status) VALUES (?,?,'',?,'pending') ON DUPLICATE KEY UPDATE status=IF(status IN ('active','disabled'),status,'pending'),requested_role=IF(status IN ('active','disabled'),requested_role,VALUES(requested_role))`, [req.user.id,req.params.id,requestedRole]);
   if (!existing[0] || existing[0].status==='denied') await notifyMusallaAdminsAndSuperAdmins(pool, locations[0].id, {
     subject: `Membership request for ${locations[0].name}`,
-    text: `${req.user.name} (${req.user.email}) requested membership at ${locations[0].name}.\n\nMusalla administrators: ${baseUrl}/musallas/${locations[0].id}/members`
+    preheader: `${req.user.name} requested to join ${locations[0].name}.`,
+    heading: 'New membership request',
+    message: 'A community member is waiting for approval. Review their request and assign the appropriate role.',
+    details: [
+      { label: 'Applicant', value: req.user.name },
+      { label: 'Email', value: req.user.email },
+      { label: 'Musalla', value: locations[0].name },
+      { label: 'Requested role', value: requestedRole === 'imam' ? 'Imam' : 'Member' }
+    ],
+    actionLabel: 'Review membership request',
+    actionUrl: `${baseUrl}/musallas/${locations[0].id}/members`,
+    logoUrl: absoluteUrl(locations[0].logo_url)
   });
   req.session.notice='Membership request sent'; res.redirect('/membership-requests');
 });
@@ -345,7 +358,7 @@ app.post('/register/musallas', requireAuth, async (req, res) => {
   const requested = (Array.isArray(submittedIds)?submittedIds:[submittedIds]).filter(Boolean).map(Number).filter(Number.isInteger);
   const ids = [...new Set(requested)];
   if (!ids.length) { req.session.notice='Select at least one Musalla'; return res.redirect('/register/musallas'); }
-  const [available] = await pool.query(`SELECT id,name,is_test FROM musalla_locations m WHERE is_disabled=FALSE AND id IN (?) AND ${visibleMusalla('m')}`, [ids]);
+  const [available] = await pool.query(`SELECT id,name,is_test,logo_url FROM musalla_locations m WHERE is_disabled=FALSE AND id IN (?) AND ${visibleMusalla('m')}`, [ids]);
   if (req.user.is_test && available.some(musalla => !musalla.is_test)) { req.session.notice='Test users can only join test Musallas'; return res.redirect('/register/musallas'); }
   if (!available.length) { req.session.notice='Select at least one available Musalla'; return res.redirect('/register/musallas'); }
   const connection = await pool.getConnection();
@@ -361,7 +374,18 @@ app.post('/register/musallas', requireAuth, async (req, res) => {
   } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   for (const musalla of newRequests) await notifyMusallaAdminsAndSuperAdmins(pool, musalla.id, {
     subject: `Membership request for ${musalla.name}`,
-    text: `${req.user.name} (${req.user.email}) requested membership at ${musalla.name}.\n\nMusalla administrators: ${baseUrl}/musallas/${musalla.id}/members`
+    preheader: `${req.user.name} requested to join ${musalla.name}.`,
+    heading: 'New membership request',
+    message: 'A community member is waiting for approval. Review their request and assign the appropriate role.',
+    details: [
+      { label: 'Applicant', value: req.user.name },
+      { label: 'Email', value: req.user.email },
+      { label: 'Musalla', value: musalla.name },
+      { label: 'Requested role', value: 'Member' }
+    ],
+    actionLabel: 'Review membership request',
+    actionUrl: `${baseUrl}/musallas/${musalla.id}/members`,
+    logoUrl: absoluteUrl(musalla.logo_url)
   });
   req.session.notice='Musalla membership requested. An administrator can now assign your role.';
   res.redirect('/');
@@ -392,7 +416,18 @@ app.post('/musallas', requireAuth, async (req, res) => {
   await syncPrayerSchedules(id);
   if (!isSuperAdminRegistration) await notifySuperAdmins(pool, {
     subject: `New Musalla registered: ${req.body.name.trim()}`,
-    text: `${req.user.name} (${req.user.email}) registered ${req.body.name.trim()} at ${req.body.address.trim() || 'an address not yet provided'}.\n\nReview the Musalla and its initial membership: ${baseUrl}/super-admin/musallas/${id}`
+    preheader: `${req.body.name.trim()} was submitted for review.`,
+    heading: 'New Musalla registration',
+    message: 'A new Musalla has been submitted. Review its information and initial membership request before activation.',
+    details: [
+      { label: 'Musalla', value: req.body.name.trim() },
+      { label: 'Address', value: req.body.address.trim() || 'Not provided' },
+      { label: 'Submitted by', value: req.user.name },
+      { label: 'Email', value: req.user.email }
+    ],
+    actionLabel: 'Review Musalla',
+    actionUrl: `${baseUrl}/super-admin/musallas/${id}`,
+    logoUrl: absoluteUrl('/icon-192.png')
   });
   if (isSuperAdminRegistration) {
     req.session.viewMode='super';
