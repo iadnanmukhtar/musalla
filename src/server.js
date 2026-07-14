@@ -480,16 +480,16 @@ app.post('/musallas', requireAuth, async (req, res) => {
   await syncPrayerSchedules(id);
   if (!isSuperAdminRegistration) await notifySuperAdmins(pool, {
     subject: `New Musalla registered: ${req.body.name.trim()}`,
-    preheader: `${req.body.name.trim()} was submitted for review.`,
+    preheader: `${req.body.name.trim()} was registered and needs its first member approved.`,
     heading: 'New Musalla registration',
-    message: 'A new Musalla has been submitted. Review its information and initial membership request before activation.',
+    message: 'A new Musalla has been added. Approve its first member and assign the appropriate role.',
     details: [
       { label: 'Musalla', value: req.body.name.trim() },
       { label: 'Address', value: req.body.address.trim() || 'Not provided' },
       { label: 'Submitted by', value: req.user.name },
       { label: 'Email', value: req.user.email }
     ],
-    actionLabel: 'Review Musalla',
+    actionLabel: 'Review initial membership',
     actionUrl: `${baseUrl}/super-admin/musallas/${id}`,
     logoUrl: absoluteUrl('/icon-192.png')
   });
@@ -632,7 +632,8 @@ app.post('/musallas/:id/members/:userId/status', requireAuth, musallaAccess, req
 app.post('/musallas/:id/membership-requests/:userId/approve', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [admins] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='active' AND FIND_IN_SET('admin',role)>0", [req.params.id]);
   if (Number(admins[0].count)===0) { req.session.notice='A super admin must approve the initial membership'; return res.redirect(`/musallas/${req.params.id}/members`); }
-  const [result] = await pool.execute("UPDATE musalla_memberships SET status='active',role=IF(requested_role='imam','imam',''),requested_role='' WHERE musalla_id=? AND user_id=? AND status='pending'", [req.params.id,req.params.userId]);
+  const roles = selectedRoles(req.body);
+  const [result] = await pool.execute("UPDATE musalla_memberships SET status='active',role=?,requested_role='' WHERE musalla_id=? AND user_id=? AND status='pending'", [roles.join(','),req.params.id,req.params.userId]);
   req.session.notice=result.affectedRows?'Membership request approved':'Membership request is no longer pending';
   res.redirect(`/musallas/${req.params.id}/members`);
 });

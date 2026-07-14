@@ -1,13 +1,13 @@
 <%- include('partials/head',{title:'Register a Musalla'}) %><%- include('partials/nav') %>
 <main>
-  <% if(canCancel){ %><a class="back" href="/">‹ Cancel and return home</a><% } %>
-  <header class="page-head"><p class="eyebrow">NEW MUSALLA</p><h1>Register a Musalla</h1><p><%= isSuperAdminRegistration?'Add a new Musalla to the platform. You can manage it immediately after registration.':'Submit the Musalla for super-admin review. Your initial membership will remain pending until approved.' %></p></header>
+  <a class="back" href="<%= canCancel?'/':'/register/musallas' %>">‹ <%= canCancel?'Cancel and return home':'Back to available Musallas' %></a>
+  <header class="page-head"><p class="eyebrow">NEW MUSALLA</p><h1>Register a Musalla</h1><p><%= isSuperAdminRegistration?'Add a new Musalla to the platform. You can manage it immediately after registration.':'The Musalla will be added immediately. A super admin must approve your initial membership and assign your role.' %></p></header>
   <form action="/musallas" method="post" class="surface stack">
     <label>Name<input name="name" required maxlength="150" placeholder="Community Musalla"></label>
     <label>Address<input name="address" maxlength="300" placeholder="Street address"></label>
     <label>Prayer timetable or app link<input name="timetable_url" type="url" placeholder="https://..."></label>
     <input type="hidden" name="timezone" value="America/Chicago">
-    <button class="button">Submit Musalla</button>
+    <button class="button">Register Musalla</button>
     <% if(canCancel){ %><a class="button secondary" href="/">Cancel</a><% } %>
   </form>
 </main>
