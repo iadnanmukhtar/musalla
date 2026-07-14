@@ -1,11 +1,13 @@
 <%- include('partials/head',{title:'Musalla profile'}) %><%- include('partials/nav') %>
 <main>
   <a class="back" href="/musallas/<%= musalla.id %>">‹ Back to <%= musalla.name %></a>
-  <header class="page-head"><p class="eyebrow">MUSALLA ADMIN</p><h1>Musalla profile</h1><p>Manage the details shown to your imams.</p></header>
+  <header class="page-head"><p class="eyebrow">MUSALLA ADMIN</p><h1>Musalla profile</h1><p>Manage the details shown to your community.</p></header>
   <form action="/musallas/<%= musalla.id %>/profile" method="post" enctype="multipart/form-data" class="surface stack">
     <label>Logo<% if(musalla.logo_url){ %><img class="logo-preview" src="<%= musalla.logo_url %>" alt="Current <%= musalla.name %> logo"><% } %><input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>PNG, JPG, WebP, or GIF. Maximum 2 MB.</small></label>
     <label>Name<input name="name" required maxlength="150" value="<%= musalla.name %>"></label>
     <label>Address<input name="address" maxlength="300" value="<%= musalla.address %>"></label>
+    <label>About <span class="optional-label">Optional</span><textarea name="about" maxlength="3000" rows="6" placeholder="Tell your community about this Musalla."><%= musalla.about || '' %></textarea><small>This description appears on the public Musalla page.</small></label>
+    <label>Public page<input value="/m/<%= musalla.guid %>" readonly><small><a href="/m/<%= musalla.guid %>" target="_blank">View public page</a></small></label>
     <label>Prayer timetable or app link<input name="timetable_url" type="url" value="<%= musalla.timetable_url %>" placeholder="https://..."><small>This link appears on the Musalla roster.</small></label>
     <details class="settings-panel">
       <summary><span>Jumuah</span><small>Friday prayer slots</small></summary>

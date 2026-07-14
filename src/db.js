@@ -40,8 +40,10 @@ async function initializeDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS musalla_locations (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      guid CHAR(36) NOT NULL UNIQUE,
       name VARCHAR(150) NOT NULL,
       address VARCHAR(300) NOT NULL DEFAULT '',
+      about TEXT,
       timetable_url TEXT,
       logo_url TEXT,
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -55,6 +57,15 @@ async function initializeDatabase() {
       CONSTRAINT fk_musalla_locations_creator FOREIGN KEY (created_by) REFERENCES musalla_users(id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [guidColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='guid'");
+  if (!guidColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN guid CHAR(36) NULL AFTER id');
+  await pool.query("UPDATE musalla_locations SET guid=UUID() WHERE guid IS NULL OR guid=''");
+  const [guidIndexes] = await pool.query("SELECT INDEX_NAME FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='guid' AND NON_UNIQUE=0");
+  if (!guidIndexes.length) await pool.query('ALTER TABLE musalla_locations ADD UNIQUE KEY uq_musalla_locations_guid (guid)');
+  const [guidDefinitions] = await pool.query("SELECT IS_NULLABLE FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='guid'");
+  if (guidDefinitions[0]?.IS_NULLABLE === 'YES') await pool.query('ALTER TABLE musalla_locations MODIFY guid CHAR(36) NOT NULL');
+  const [aboutColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='about'");
+  if (!aboutColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN about TEXT NULL AFTER address');
   const [locationTestColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='is_test'");
   if (!locationTestColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE');
   const [jumuahColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name LIKE 'jumuah_%_enabled'");
@@ -124,7 +135,7 @@ async function seedTestData() {
       const [existing] = await connection.execute('SELECT id FROM musalla_locations WHERE name=? AND is_test=TRUE LIMIT 1', [name]);
       let musallaId = existing[0]?.id;
       if (!musallaId) {
-        const [result] = await connection.execute('INSERT INTO musalla_locations (name,address,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled,created_by,is_test) VALUES (?,?,?,?,?,?,?,TRUE)', [name,address,'America/Chicago',jumuah1,jumuah2,jumuah3,userIds['test-admin@musalla.local']]);
+        const [result] = await connection.execute('INSERT INTO musalla_locations (guid,name,address,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled,created_by,is_test) VALUES (UUID(),?,?,?,?,?,?,?,TRUE)', [name,address,'America/Chicago',jumuah1,jumuah2,jumuah3,userIds['test-admin@musalla.local']]);
         musallaId = result.insertId;
       } else {
         await connection.execute('UPDATE musalla_locations SET address=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=?,is_disabled=FALSE WHERE id=?', [address,jumuah1,jumuah2,jumuah3,musallaId]);
