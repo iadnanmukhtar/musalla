@@ -93,11 +93,13 @@ function smtpTransport() {
   return transporter;
 }
 
-async function sendNotification(pool, { subject, text, html, preheader, heading, message, details, actionLabel, actionUrl, logoUrl, additionalRecipients = [] }) {
+async function sendNotification(pool, { subject, text, html, preheader, heading, message, details, actionLabel, actionUrl, logoUrl, additionalRecipients = [], includeSuperAdmins = true }) {
   const mailer = smtpTransport();
   if (!mailer) return false;
   try {
-    const [users] = await pool.query(`SELECT email FROM musalla_users WHERE is_superuser=TRUE AND is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`);
+    const [users] = includeSuperAdmins
+      ? await pool.query(`SELECT email FROM musalla_users WHERE is_superuser=TRUE AND is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`)
+      : [[]];
     const recipients = [...new Set([...users.map(user=>user.email), ...additionalRecipients]
       .map(email=>String(email || '').trim().toLowerCase())
       .filter(Boolean))];
@@ -129,4 +131,10 @@ async function notifyMusallaAdminsAndSuperAdmins(pool, musallaId, message) {
   return sendNotification(pool, { ...message, additionalRecipients: admins.map(admin=>admin.email) });
 }
 
-module.exports = { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins };
+async function notifyUser(pool, userId, message) {
+  const [users] = await pool.execute(`SELECT email FROM musalla_users WHERE id=? AND is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`, [userId]);
+  if (!users[0]) return false;
+  return sendNotification(pool, { ...message, additionalRecipients: [users[0].email], includeSuperAdmins: false });
+}
+
+module.exports = { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyUser };

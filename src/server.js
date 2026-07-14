@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules, TEST_MODE } = require('./db');
-const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins } = require('./email');
+const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyUser } = require('./email');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -103,6 +103,27 @@ function hasRole(membership, role) {
 function selectedRoles(body) {
   const values = Array.isArray(body.roles) ? body.roles : [body.roles];
   return ['imam','admin'].filter(role => values.includes(role));
+}
+
+async function notifyMembershipApproved(musallaId, userId, roles) {
+  const [musallas] = await pool.execute('SELECT name,logo_url FROM musalla_locations WHERE id=?', [musallaId]);
+  if (!musallas[0]) return false;
+  const roleNames = roles.length
+    ? roles.map(role => role === 'admin' ? 'Administrator' : 'Imam')
+    : ['Member'];
+  return notifyUser(pool, userId, {
+    subject: `Membership approved for ${musallas[0].name}`,
+    preheader: `You have been approved to join ${musallas[0].name} as ${roleNames.join(' and ')}.`,
+    heading: 'Your membership is approved',
+    message: `You can now access ${musallas[0].name} in the Musalla app.`,
+    details: [
+      { label: 'Musalla', value: musallas[0].name },
+      { label: roleNames.length === 1 ? 'Role' : 'Roles', value: roleNames.join(', ') }
+    ],
+    actionLabel: 'Open Musalla',
+    actionUrl: `${baseUrl}/musallas/${musallaId}`,
+    logoUrl: absoluteUrl(musallas[0].logo_url)
+  });
 }
 
 function isSuperAdminMode(req) {
@@ -306,6 +327,7 @@ app.post('/super-admin/musallas/:id/membership-requests/:userId/approve', requir
   const [admins] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='active' AND FIND_IN_SET('admin',role)>0", [req.params.id]);
   if (Number(admins[0].count)>0) { req.session.notice='This Musalla already has an administrator; its admins must approve new requests'; return res.redirect(`/super-admin/musallas/${req.params.id}`); }
   const [result] = await pool.execute("UPDATE musalla_memberships SET status='active',role=? WHERE musalla_id=? AND user_id=? AND status='pending'", [roles.join(','),req.params.id,req.params.userId]);
+  if (result.affectedRows) await notifyMembershipApproved(req.params.id, req.params.userId, roles);
   req.session.notice=result.affectedRows?'Initial membership approved':'Membership request is no longer pending';
   res.redirect(`/super-admin/musallas/${req.params.id}`);
 });
@@ -636,6 +658,7 @@ app.post('/musallas/:id/membership-requests/:userId/approve', requireAuth, musal
   if (Number(admins[0].count)===0) { req.session.notice='A super admin must approve the initial membership'; return res.redirect(`/musallas/${req.params.id}/members`); }
   const roles = selectedRoles(req.body);
   const [result] = await pool.execute("UPDATE musalla_memberships SET status='active',role=?,requested_role='' WHERE musalla_id=? AND user_id=? AND status='pending'", [roles.join(','),req.params.id,req.params.userId]);
+  if (result.affectedRows) await notifyMembershipApproved(req.params.id, req.params.userId, roles);
   req.session.notice=result.affectedRows?'Membership request approved':'Membership request is no longer pending';
   res.redirect(`/musallas/${req.params.id}/members`);
 });
