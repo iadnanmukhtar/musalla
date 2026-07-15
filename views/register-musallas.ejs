@@ -1,16 +1,19 @@
 <%- include('partials/head',{title:'Choose a Musalla'}) %><%- include('partials/nav') %>
 <main>
   <% const pendingMusallas=musallas.filter(m=>m.status==='pending'); %>
-  <header class="page-head"><p class="eyebrow">WELCOME</p><h1><%= pendingMusallas.length?'Approval pending':'Find your Musalla' %></h1><p><%= pendingMusallas.length?'Your membership request is pending approval. You may also request another Musalla or register a new one.':'Request to join an existing Musalla, or register a new one if it is not listed yet.' %></p></header>
+  <header class="page-head"><p class="eyebrow">WELCOME</p><h1><%= pendingMusallas.length?'Approval pending':'Join the community' %></h1><p><%= pendingMusallas.length?'Your membership request is pending approval. You may also request another Musalla or register a new one.':'Register a new Musalla, or find an existing community to join.' %></p></header>
+  <section class="surface onboarding-register"><h2>Register a new Musalla</h2><p>The Musalla will be added immediately. Since you will be its first member, a super admin must approve your membership and role.</p><a class="button secondary" href="/register-musalla">Register a Musalla</a></section>
+  <div class="onboarding-choice"><span>or</span></div>
+  <div class="section-title"><h2>Find a Musalla</h2><span id="musalla-count"><%= musallas.length %></span></div>
+  <label class="content-filter"><span class="sr-only">Filter Musallas</span><input id="musalla-filter" type="search" placeholder="Find a Musalla" autocomplete="off"></label>
   <form action="/register/musallas" method="post" class="registration-form" id="registration-form" data-confirm-title="Send membership request?" data-confirm="Your request will be sent to the selected Musalla administrators for approval." data-confirm-button="Send request">
     <div class="registration-musallas">
-      <% musallas.forEach(m=>{ const isPending=m.status==='pending'; %><label class="registration-card <%= isPending?'pending-registration':'' %>"><% if(isPending){ %><span class="registration-status-mark" aria-hidden="true">⌛</span><% } else { %><input type="checkbox" name="musalla_ids" value="<%= m.id %>"><% } %><span class="mosque-icon"><% if(m.logo_url){ %><img src="<%= m.logo_url %>" alt=""><% } else { %>⌂<% } %></span><span><b><%= m.name %></b><small><%= m.address||'Address not set' %></small><% if(isPending){ %><strong class="pending-label">Pending approval</strong><% } else if(m.status==='denied'){ %><strong class="denied-label">Request again</strong><% } %></span></label><% }) %>
+      <% musallas.forEach(m=>{ const isPending=m.status==='pending'; %><label class="registration-card <%= isPending?'pending-registration':'' %>" data-musalla-card data-search="<%= `${m.name} ${m.address||''}`.toLowerCase() %>"><% if(isPending){ %><span class="registration-status-mark" aria-hidden="true">⌛</span><% } else { %><input type="checkbox" name="musalla_ids" value="<%= m.id %>"><% } %><span class="mosque-icon"><% if(m.logo_url){ %><img src="<%= m.logo_url %>" alt=""><% } else { %>⌂<% } %></span><span><b><%= m.name %></b><small><%= m.address||'Address not set' %></small><% if(isPending){ %><strong class="pending-label">Pending approval</strong><% } else if(m.status==='denied'){ %><strong class="denied-label">Request again</strong><% } %></span></label><% }) %>
       <% if(!musallas.length){ %><div class="empty">No Musallas are currently available. Please contact an administrator.</div><% } %>
+      <div class="empty" id="no-filter-results" hidden>No Musallas match your search.</div>
     </div>
     <p class="form-error" id="registration-error" hidden>Select at least one Musalla.</p>
     <button class="button" <%= !musallas.some(m=>m.status!=='pending')?'disabled':'' %>>Send request</button>
   </form>
-  <div class="onboarding-choice"><span>or</span></div>
-  <section class="surface onboarding-register"><h2>Register a new Musalla</h2><p>The Musalla will be added immediately. Since you will be its first member, a super admin must approve your membership and role.</p><a class="button secondary" href="/register-musalla">Register a Musalla</a></section>
 </main>
-<script src="/registration.js"></script><%- include('partials/foot') %>
+<script src="/dashboard.js"></script><script src="/registration.js"></script><%- include('partials/foot') %>

@@ -1,24 +1,26 @@
-<%- include('partials/head',{title:`Edit ${musalla.name}`}) %><%- include('partials/nav') %>
+<%- include('partials/head',{title:`Edit ${musalla.name}`,canonicalPath:`/m/${musalla.guid}`}) %><%- include('partials/nav') %>
 <main>
   <a class="back" href="/super-admin">‹ All Musallas</a>
   <header class="page-head"><p class="eyebrow">SUPER ADMIN</p><h1>Edit Musalla</h1><p>Update this Musalla's platform record.</p></header>
-  <form action="/super-admin/musallas/<%= musalla.id %>" method="post" enctype="multipart/form-data" class="surface stack"><label>Logo<% if(musalla.logo_url){ %><img class="logo-preview" src="<%= musalla.logo_url %>" alt="Current <%= musalla.name %> logo"><% } %><input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>PNG, JPG, WebP, or GIF. Maximum 2 MB.</small></label><label>Name<input name="name" required maxlength="150" value="<%= musalla.name %>"></label><label>Address<input name="address" maxlength="300" value="<%= musalla.address %>"></label><label>About <span class="optional-label">Optional</span><textarea name="about" maxlength="3000" rows="6"><%= musalla.about || '' %></textarea><small>This description appears on the public Musalla page.</small></label><label>Public page<input value="/m/<%= musalla.guid %>" readonly><small><a href="/m/<%= musalla.guid %>" target="_blank">View public page</a></small></label><label>Prayer timetable or app link<input name="timetable_url" type="url" value="<%= musalla.timetable_url %>" placeholder="https://..."><small>This link appears on the Musalla roster.</small></label><label>Timezone<input name="timezone" required value="<%= musalla.timezone %>"><small>Use an IANA timezone such as America/Chicago.</small></label><details class="settings-panel"><summary><span>Jumuah</span><small>Friday prayer slots</small></summary><div class="settings-panel-content"><p>Enable up to three Jumuah slots. On Fridays, enabled slots replace Zuhr on the imam roster.</p><% [1,2,3].forEach(number => { %><label class="toggle-setting"><span><b>Jumuah <%= number %></b><small>Show this slot on Fridays</small></span><input type="checkbox" name="jumuah_<%= number %>_enabled" value="1" <%= musalla[`jumuah_${number}_enabled`]?'checked':'' %>></label><% }) %></div></details><button class="button">Save Musalla</button></form>
+  <form action="/super-admin/musallas/<%= musalla.id %>" method="post" enctype="multipart/form-data" class="surface stack"><label>Logo<% if(musalla.logo_url){ %><a href="/m/<%= musalla.guid %>" aria-label="View <%= musalla.name %>"><img class="logo-preview" src="<%= musalla.logo_url %>" alt="Current <%= musalla.name %> logo"></a><% } %><input name="logo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>PNG, JPG, WebP, or GIF. Maximum 2 MB.</small></label><label>Name<input name="name" required maxlength="150" value="<%= musalla.name %>"></label><label>Address<input name="address" maxlength="300" value="<%= musalla.address %>"></label><label>About <span class="optional-label">Optional</span><textarea name="about" maxlength="3000" rows="6"><%= musalla.about || '' %></textarea><small>This description appears on the public Musalla page.</small></label><label>Prayer timetable or app link<input name="timetable_url" type="url" value="<%= musalla.timetable_url %>" placeholder="https://..."><small>This link appears on the Musalla roster.</small></label><input name="timezone" type="hidden" value="<%= musalla.timezone %>"><details class="settings-panel"><summary><span>Jumuah</span><small>Friday prayer slots</small></summary><div class="settings-panel-content"><p>Enable up to three Jumuah slots. On Fridays, enabled slots replace Zuhr on the imam roster.</p><% [1,2,3].forEach(number => { %><label class="toggle-setting"><span><b>Jumuah <%= number %></b><small>Show this slot on Fridays</small></span><input type="checkbox" name="jumuah_<%= number %>_enabled" value="1" <%= musalla[`jumuah_${number}_enabled`]?'checked':'' %>></label><% }) %></div></details><button class="button">Save Musalla</button></form>
   <% if(needsInitialAdmin){ %>
     <section class="surface super-members">
       <h2>Initial membership requests</h2>
       <p>The Musalla does not have an administrator yet. As a super admin, approve its first member and assign the Imam role, Administrator role, or both.</p>
       <% requests.forEach(request=>{ %>
         <div class="membership-request initial-approval">
-          <div><b><%= request.name %></b><small><%= request.email %></small></div>
+          <div class="initial-requester"><b><%= request.name %></b><small><%= request.email %></small></div>
           <div class="request-actions">
             <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack" data-confirm-title="Approve <%= request.name %>?" data-confirm="This membership will be activated with the selected roles." data-confirm-button="Approve membership">
               <div class="role-options">
                 <label class="role-option"><input type="checkbox" name="roles" value="imam"> Imam</label>
                 <label class="role-option"><input type="checkbox" name="roles" value="admin"> Administrator</label>
               </div>
-              <button class="button chip approve">Approve membership</button>
+              <div class="initial-action-buttons">
+                <button class="button chip approve">Approve membership</button>
+                <button class="button chip danger" type="submit" formaction="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/deny" data-confirm-title="Deny <%= request.name %>?" data-confirm="This membership request will be denied." data-confirm-button="Deny request" data-confirm-style="danger">Deny</button>
+              </div>
             </form>
-            <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/deny" method="post" data-confirm-title="Deny <%= request.name %>?" data-confirm="This membership request will be denied." data-confirm-button="Deny request" data-confirm-style="danger"><button class="chip danger">Deny</button></form>
           </div>
         </div>
       <% }) %>

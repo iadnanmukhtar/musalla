@@ -1,8 +1,8 @@
 <%- include('partials/head',{title:musalla.name,isPublic:true,canonicalPath:`/m/${musalla.guid}`,description:musalla.about||`${musalla.name}${musalla.address?` in ${musalla.address}`:''} is part of the Musalla community.`,structuredData}) %>
 <main class="public-musalla">
-  <nav class="public-links" aria-label="Public navigation"><a class="public-brand" href="/"><span class="brand-mark"><img src="/icon.svg" alt="Musalla"></span><span>Musalla</span></a><a href="/about">About</a></nav>
+  <%- include('partials/public-nav') %>
   <section class="public-musalla-hero">
-    <div class="mosque-icon public-musalla-logo"><% if(musalla.logo_url){ %><img src="<%= musalla.logo_url %>" alt="<%= musalla.name %> logo"><% } else { %>⌂<% } %></div>
+    <a class="mosque-icon public-musalla-logo" href="/m/<%= musalla.guid %>" aria-label="View <%= musalla.name %>"><% if(musalla.logo_url){ %><img src="<%= musalla.logo_url %>" alt="<%= musalla.name %> logo"><% } else { %>⌂<% } %></a>
     <p class="eyebrow">COMMUNITY MUSALLA</p><h1><%= musalla.name %></h1>
     <% if(musalla.address){ %><a class="public-address" href="https://www.google.com/maps/search/?api=1&amp;query=<%= encodeURIComponent(musalla.address) %>"><%= musalla.address %></a><% } %>
   </section>
@@ -15,4 +15,4 @@
     <% } else { %><h2>Join the community</h2><p>Request membership to interact with this Musalla in the app.</p><a class="button" href="<%= joinUrl %>">Request membership</a><% } %>
   </section>
 </main>
-<%- include('partials/foot') %>
+<script src="/menu.js"></script><%- include('partials/foot') %>

@@ -62,6 +62,7 @@ Configure MySQL with the `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWO
 - `musalla_locations`
 - `musalla_memberships`
 - `musalla_prayer_slots`
+- `musalla_daily_digest_deliveries`
 
 Users and Musallas include an `is_test` flag to isolate test records. Memberships store the active role and, when applicable, an invited Imam role awaiting approval.
 
@@ -85,15 +86,19 @@ Test mode makes it possible to exercise Imam and administrator workflows without
 TEST_MODE=true
 ```
 
-After restarting, the login page provides buttons for a seeded Test Imam and Test Administrator. Both accounts belong to Test Musalla North and Test Musalla South with the appropriate roles. Existing production data remains available for comparison.
+After restarting, the login page provides buttons for a clean Test New User, a seeded Test Imam, and a Test Administrator. The new-user login resets that account's memberships and test Musallas every time, allowing the complete first-time join-or-register flow to be repeated. The Imam and Administrator accounts belong to Test Musalla North and Test Musalla South with the appropriate roles. Existing production data remains available for comparison.
 
-Test users and Musallas are stored with `is_test=TRUE`. When `TEST_MODE=false`, test logins are unavailable, test users cannot authenticate, and test Musallas are excluded from application queries and schedule generation. Test users are also prevented from joining production Musallas, and any Musalla they create is marked as test data.
+Test users and Musallas are stored with `is_test=TRUE`. Any new user or Musalla created while `TEST_MODE=true` is automatically marked as test data, regardless of which account creates it. When `TEST_MODE=false`, test logins are unavailable, test users cannot authenticate, and test Musallas are excluded from application queries and schedule generation. Test users are also prevented from joining production Musallas.
 
 ## Email notifications
 
 Email delivery requires `SMTP_HOST` and `MAIL_FROM`. Configure `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASSWORD` as required by the SMTP provider.
 
 The application sends notifications when a Musalla is submitted for review and when a new or renewed membership request is created, including a request originating from an Imam invitation.
+
+At noon in the `America/New_York` timezone each day, every active Musalla's active local administrators receive a prayer-coverage digest. It lists today's available and assigned slots with the assigned Imam's name and includes the following day's Fajr slot. Persisted delivery records prevent duplicate sends after restarts or when multiple application instances are running.
+
+When `TEST_MODE=true`, daily digests are restricted to test Musallas and test administrators so a test process cannot notify production recipients.
 
 Membership notifications go to every active administrator of the affected Musalla and every active database-designated super admin. Addresses are normalized and deduplicated. There is no `SUPER_ADMIN_EMAIL` setting; super-admin recipients come from the database.
 

@@ -116,6 +116,18 @@ async function initializeDatabase() {
     await pool.query("UPDATE musalla_prayer_slots SET prayer_name='Zuhr' WHERE prayer_name='Dhuhr'");
     await pool.query("ALTER TABLE musalla_prayer_slots MODIFY prayer_name ENUM('Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL");
   }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS musalla_daily_digest_deliveries (
+      musalla_id BIGINT UNSIGNED NOT NULL,
+      digest_date DATE NOT NULL,
+      status ENUM('pending','sent') NOT NULL DEFAULT 'pending',
+      claim_token CHAR(36) NOT NULL,
+      claimed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      sent_at TIMESTAMP NULL,
+      PRIMARY KEY (musalla_id,digest_date),
+      CONSTRAINT fk_musalla_digest_location FOREIGN KEY (musalla_id) REFERENCES musalla_locations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
   if (TEST_MODE) await seedTestData();
 }
 
@@ -125,6 +137,7 @@ async function seedTestData() {
     await connection.beginTransaction();
     await connection.execute("INSERT INTO musalla_users (email,name,bio,is_test,registration_completed) VALUES ('test-imam@musalla.local','Test Imam','Test-mode imam account',TRUE,TRUE) ON DUPLICATE KEY UPDATE name=VALUES(name),bio=VALUES(bio),is_test=TRUE,registration_completed=TRUE,is_disabled=FALSE");
     await connection.execute("INSERT INTO musalla_users (email,name,bio,is_test,registration_completed) VALUES ('test-admin@musalla.local','Test Administrator','Test-mode administrator account',TRUE,TRUE) ON DUPLICATE KEY UPDATE name=VALUES(name),bio=VALUES(bio),is_test=TRUE,registration_completed=TRUE,is_disabled=FALSE");
+    await connection.execute("INSERT INTO musalla_users (email,name,bio,is_test,registration_completed) VALUES ('test-new@musalla.local','Test New User','',TRUE,FALSE) ON DUPLICATE KEY UPDATE is_test=TRUE,is_disabled=FALSE");
     const [users] = await connection.query("SELECT id,email FROM musalla_users WHERE email IN ('test-imam@musalla.local','test-admin@musalla.local') AND is_test=TRUE");
     const userIds = Object.fromEntries(users.map(user => [user.email,user.id]));
     const testMusallas = [
