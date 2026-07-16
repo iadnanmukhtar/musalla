@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules, TEST_MODE } = require('./db');
-const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaImams, notifyUser } = require('./email');
+const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaImams, notifyMusallaImamsAndAdmins, notifyUser } = require('./email');
 const { digestDetails, weeklyDigestHtml, startDailyAdminPrayerDigest } = require('./daily-digest');
 
 const app = express();
@@ -767,6 +767,30 @@ app.post('/musallas/:id/slots/:slotId/opt-in', requireAuth, musallaAccess, requi
       logoUrl: absoluteUrl(musalla.logo_url)
     });
   }
+  const weekStart = slot.prayer_date;
+  const weekEnd = new Date(`${weekStart}T12:00:00Z`);
+  weekEnd.setUTCDate(weekEnd.getUTCDate()+6);
+  const weekEndDate = weekEnd.toISOString().slice(0,10);
+  const [locations] = await pool.execute('SELECT name,logo_url FROM musalla_locations WHERE id=?', [req.params.id]);
+  const scheduleMusalla = locations[0];
+  const [weeklySlots] = await pool.execute(`SELECT p.prayer_date,p.prayer_name,u.name imam_name FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date BETWEEN ? AND ? ORDER BY p.prayer_date,FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [req.params.id,weekStart,weekEndDate]);
+  const optedOut = Boolean(slot.imam_user_id) && !replacedImam;
+  const changeMessage = replacedImam
+    ? `${req.user.name} replaced ${replacedImam.name} for ${slot.prayer_name} on ${slot.prayer_date}.`
+    : optedOut
+      ? `${req.user.name} opted out of ${slot.prayer_name} on ${slot.prayer_date}; the slot is now available.`
+      : `${req.user.name} opted in to lead ${slot.prayer_name} beginning ${slot.prayer_date}${assignedDays>1?` for ${assignedDays} days`:''}.`;
+  await notifyMusallaImamsAndAdmins(pool, req.params.id, {
+    subject: `${scheduleMusalla.name} prayer schedule updated · ${slot.prayer_name} ${slot.prayer_date}`,
+    preheader: changeMessage,
+    heading: 'Prayer schedule updated',
+    message: `${changeMessage} Here is the updated seven-day schedule.`,
+    details: digestDetails(weeklySlots, weekStart),
+    contentHtml: weeklyDigestHtml(weeklySlots, weekStart),
+    actionLabel: 'View prayer schedule',
+    actionUrl: `${baseUrl}/musallas/${req.params.id}?date=${returnDate}`,
+    logoUrl: absoluteUrl(scheduleMusalla.logo_url)
+  });
   req.session.notice=replacedImam?`You replaced ${replacedImam.name} and are now leading this salah`:slot.imam_user_id?'You are no longer assigned for this date':`Jazak Allahu Khayran — you are leading this salah for ${assignedDays} ${assignedDays===1?'day':'days'}`;
   res.redirect(`/musallas/${req.params.id}?date=${returnDate}`);
 });

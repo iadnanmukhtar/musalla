@@ -92,9 +92,11 @@ Test users and Musallas are stored with `is_test=TRUE`. Any new user or Musalla 
 
 ## Email notifications
 
-Email delivery requires `SMTP_HOST` and `MAIL_FROM`. Configure `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASSWORD` as required by the SMTP provider.
+Email delivery and sender identity are controlled entirely by the SMTP settings in `.env`. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `MAIL_FROM`. For local Gmail, use `smtp.gmail.com`, port `587`, `SMTP_SECURE=false`, the Gmail address as `SMTP_USER`, a Google app password as `SMTP_PASSWORD`, and the same Gmail address in `MAIL_FROM`. In production, set `MAIL_FROM="Musalla <musalla@islamunlocked.com>"` and use an SMTP service that authorizes that sender.
 
 The application sends notifications when a Musalla is submitted for review and when a new or renewed membership request is created, including a request originating from an Imam invitation.
+
+Every Imam schedule opt-in, opt-out, or replacement sends the updated seven-day schedule to all active Imams and Musalla administrators for that Musalla.
 
 At noon in the `America/New_York` timezone each day, every active Musalla's active Imam members receive a prayer-coverage digest. It shows the next seven days as a compact weekly table, highlights open slots that still need an Imam, and links directly to the Musalla schedule. Persisted delivery records prevent duplicate sends after restarts or when multiple application instances are running.
 
@@ -122,7 +124,7 @@ Membership notifications go to every active administrator of the affected Musall
 | `SMTP_SECURE` | Whether SMTP uses a secure connection |
 | `SMTP_USER` | Optional SMTP username |
 | `SMTP_PASSWORD` | Optional SMTP password |
-| `MAIL_FROM` | Notification sender |
+| `MAIL_FROM` | Notification sender name and address |
 
 ## Mobile installation
 

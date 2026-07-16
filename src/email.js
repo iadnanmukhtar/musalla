@@ -141,10 +141,15 @@ async function notifyMusallaImams(pool, musallaId, message) {
   return sendNotification(pool, { ...message, additionalRecipients: imams.map(imam=>imam.email), includeSuperAdmins: false });
 }
 
+async function notifyMusallaImamsAndAdmins(pool, musallaId, message) {
+  const [recipients] = await pool.execute(`SELECT DISTINCT u.email FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status='active' AND (FIND_IN_SET('imam',ms.role)>0 OR FIND_IN_SET('admin',ms.role)>0) AND u.is_disabled=FALSE AND u.is_test=${TEST_MODE?'TRUE':'FALSE'}`, [musallaId]);
+  return sendNotification(pool, { ...message, additionalRecipients: recipients.map(recipient=>recipient.email), includeSuperAdmins: false });
+}
+
 async function notifyUser(pool, userId, message) {
   const [users] = await pool.execute(`SELECT email FROM musalla_users WHERE id=? AND is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`, [userId]);
   if (!users[0]) return false;
   return sendNotification(pool, { ...message, additionalRecipients: [users[0].email], includeSuperAdmins: false });
 }
 
-module.exports = { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaAdmins, notifyMusallaImams, notifyUser };
+module.exports = { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaAdmins, notifyMusallaImams, notifyMusallaImamsAndAdmins, notifyUser };
