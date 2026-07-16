@@ -22,7 +22,7 @@
 <div class="card-list" id="musalla-list">
 <% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; %>
 <article class="musalla-card" data-musalla-card data-search="<%= `${m.name} ${m.address}`.toLowerCase() %>">
-<a class="musalla-card-main" href="/musallas/<%= m.id %>" aria-label="Open <%= m.name %>">
+<a class="musalla-card-main" href="/musallas/<%= m.guid %>" aria-label="Open <%= m.name %>">
 <span class="mosque-icon">
 <% if(m.logo_url){ %>
 <img src="<%= m.logo_url %>" alt="">
@@ -31,7 +31,7 @@
 </a>
 <div>
 <h3>
-<a href="/musallas/<%= m.id %>">
+<a href="/musallas/<%= m.guid %>">
 <%= m.name %>
 </a>
 </h3>
@@ -49,7 +49,7 @@
  · <%= jumuahSlotCount ? `${jumuahSlotCount} Jumuah slot${jumuahSlotCount===1?'':'s'}` : 'No Jumuah slot' %>
 </small>
 </div>
-<a class="musalla-card-arrow" href="/musallas/<%= m.id %>" aria-label="Open <%= m.name %>">›</a>
+<a class="musalla-card-arrow" href="/musallas/<%= m.guid %>" aria-label="Open <%= m.name %>">›</a>
 </article>
 <% }) %>
 <% if(!musallas.length){ %>

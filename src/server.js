@@ -107,7 +107,7 @@ function selectedRoles(body) {
 }
 
 async function notifyMembershipApproved(musallaId, userId, roles) {
-  const [musallas] = await pool.execute('SELECT name,logo_url FROM musalla_locations WHERE id=?', [musallaId]);
+  const [musallas] = await pool.execute('SELECT guid,name,logo_url FROM musalla_locations WHERE id=?', [musallaId]);
   if (!musallas[0]) return false;
   const roleNames = roles.length
     ? roles.map(role => role === 'admin' ? 'Administrator' : 'Imam')
@@ -122,7 +122,7 @@ async function notifyMembershipApproved(musallaId, userId, roles) {
       { label: roleNames.length === 1 ? 'Role' : 'Roles', value: roleNames.join(', ') }
     ],
     actionLabel: 'Open Musalla',
-    actionUrl: `${baseUrl}/musallas/${musallaId}`,
+    actionUrl: `${baseUrl}/musallas/${musallas[0].guid}`,
     logoUrl: absoluteUrl(musallas[0].logo_url)
   });
 }
@@ -151,11 +151,17 @@ async function updateMemberRoles(musallaId, userId, roles) {
 
 async function musallaAccess(req, res, next) {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  const [locations] = await pool.execute(`SELECT is_disabled FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
+  const [locations] = await pool.execute(`SELECT id,guid,is_disabled FROM musalla_locations m WHERE guid=? AND ${visibleMusalla('m')}`, [req.params.guid]);
   if (!locations[0]) return res.sendStatus(404);
   if (locations[0].is_disabled) return res.status(403).render('message', { title: 'Musalla unavailable', message: 'This Musalla has been disabled.' });
-  const [memberships] = await pool.execute("SELECT * FROM musalla_memberships WHERE user_id=? AND musalla_id=? AND status='active'", [req.user.id, req.params.id]);
+  const [memberships] = await pool.execute("SELECT * FROM musalla_memberships WHERE user_id=? AND musalla_id=? AND status='active'", [req.user.id, locations[0].id]);
   if (!memberships[0]) return res.status(403).render('message', { title: 'No access', message: 'You are not a member of this Musalla.' });
+  req.params.id = locations[0].id;
+  req.musallaGuid = locations[0].guid;
+  const redirect = res.redirect.bind(res);
+  res.redirect = location => redirect(typeof location === 'string'
+    ? location.replace(`/musallas/${locations[0].id}`, `/musallas/${locations[0].guid}`)
+    : location);
   req.membership = memberships[0];
   next();
 }
@@ -168,7 +174,7 @@ function requireAdmin(req, res, next) {
 function requireImam(req, res, next) {
   if (hasRole(req.membership, 'imam')) return next();
   req.session.notice='Only imams can opt in to lead salah';
-  return res.redirect(`/musallas/${req.params.id}`);
+  return res.redirect(`/musallas/${req.musallaGuid}`);
 }
 
 function requireSuperAdmin(req, res, next) {
@@ -251,7 +257,7 @@ app.get('/m/:guid', async (req, res, next) => {
     if (musalla.address) structuredData.address = musalla.address;
     if (musalla.logo_url) structuredData.image = absoluteUrl(musalla.logo_url);
     if (musalla.about) structuredData.description = musalla.about;
-    res.render('public-musalla', { musalla,membership,joinUrl: `/join/musallas/${musalla.guid}`,structuredData });
+    res.render('public-musalla', { musalla: { ...musalla, id: musalla.guid },membership,joinUrl: `/join/musallas/${musalla.guid}`,structuredData });
   } catch (error) { next(error); }
 });
 app.get('/join/musallas/:guid', async (req, res, next) => {
@@ -419,7 +425,7 @@ app.get('/membership-requests', requireAuth, async (req, res) => {
 });
 app.post('/membership-requests/:id', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
-  const [locations] = await pool.execute(`SELECT id,name,is_test,logo_url FROM musalla_locations m WHERE id=? AND is_disabled=FALSE AND ${visibleMusalla('m')}`, [req.params.id]);
+  const [locations] = await pool.execute(`SELECT id,guid,name,is_test,logo_url FROM musalla_locations m WHERE id=? AND is_disabled=FALSE AND ${visibleMusalla('m')}`, [req.params.id]);
   if (!locations[0]) return res.sendStatus(404);
   if (req.user.is_test && !locations[0].is_test) return res.sendStatus(403);
   const requestedRole = req.body.requested_role === 'imam' ? 'imam' : '';
@@ -437,7 +443,7 @@ app.post('/membership-requests/:id', requireAuth, async (req, res) => {
       { label: 'Requested role', value: requestedRole === 'imam' ? 'Imam' : 'Member' }
     ],
     actionLabel: 'Review membership request',
-    actionUrl: `${baseUrl}/musallas/${locations[0].id}/members`,
+    actionUrl: `${baseUrl}/musallas/${locations[0].guid}/members`,
     logoUrl: absoluteUrl(locations[0].logo_url)
   });
   req.session.notice='Membership request sent'; res.redirect('/membership-requests');
@@ -463,7 +469,7 @@ app.post('/register/musallas', requireAuth, async (req, res) => {
   const requested = (Array.isArray(submittedIds)?submittedIds:[submittedIds]).filter(Boolean).map(Number).filter(Number.isInteger);
   const ids = [...new Set(requested)];
   if (!ids.length) { req.session.notice='Select at least one Musalla'; return res.redirect('/register/musallas'); }
-  const [available] = await pool.query(`SELECT id,name,is_test,logo_url FROM musalla_locations m WHERE is_disabled=FALSE AND id IN (?) AND ${visibleMusalla('m')}`, [ids]);
+  const [available] = await pool.query(`SELECT id,guid,name,is_test,logo_url FROM musalla_locations m WHERE is_disabled=FALSE AND id IN (?) AND ${visibleMusalla('m')}`, [ids]);
   if (req.user.is_test && available.some(musalla => !musalla.is_test)) { req.session.notice='Test users can only join test Musallas'; return res.redirect('/register/musallas'); }
   if (!available.length) { req.session.notice='Select at least one available Musalla'; return res.redirect('/register/musallas'); }
   const connection = await pool.getConnection();
@@ -489,7 +495,7 @@ app.post('/register/musallas', requireAuth, async (req, res) => {
       { label: 'Requested role', value: 'Member' }
     ],
     actionLabel: 'Review membership request',
-    actionUrl: `${baseUrl}/musallas/${musalla.id}/members`,
+    actionUrl: `${baseUrl}/musallas/${musalla.guid}/members`,
     logoUrl: absoluteUrl(musalla.logo_url)
   });
   req.session.notice='Musalla membership requested. An administrator can now assign your role.';
@@ -563,7 +569,7 @@ app.post('/musallas', requireAuth, async (req, res) => {
   }
   res.redirect(registrationDestination);
 });
-app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
+app.get('/musallas/:guid', requireAuth, musallaAccess, async (req, res) => {
   const [locations] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
   const musalla = locations[0];
   const { firstDate,lastDate,today } = scheduleBounds(new Date(),musalla.timezone);
@@ -579,15 +585,15 @@ app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
   const [slots] = await pool.execute(`SELECT p.*,u.name imam_name,u.avatar_url FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date BETWEEN ? AND ? ORDER BY p.prayer_date,FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [req.params.id,date,weekEndDate]);
   const isAdmin = hasRole(req.membership, 'admin');
   const canLead = hasRole(req.membership, 'imam');
-  res.locals.musallaNav=musalla;
+  res.locals.musallaNav={ ...musalla, id: musalla.guid };
   res.locals.canManageMembers=isAdmin;
   if (isAdmin) {
     const [pending] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='pending'", [req.params.id]);
     res.locals.pendingApprovalCount=Number(pending[0].count);
   }
-  res.render('musalla', { musalla,slots,date,weekEndDate,today,firstDate,lastDate,finalWeekStart: finalWeekStartValue,isAdmin,canLead });
+  res.render('musalla', { musalla: { ...musalla, id: musalla.guid },slots,date,weekEndDate,today,firstDate,lastDate,finalWeekStart: finalWeekStartValue,isAdmin,canLead });
 });
-app.post('/musallas/:id/remind-imams', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.post('/musallas/:guid/remind-imams', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [locations] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
   const musalla = locations[0];
   if (!musalla) return res.sendStatus(404);
@@ -616,13 +622,13 @@ app.post('/musallas/:id/remind-imams', requireAuth, musallaAccess, requireAdmin,
     details: digestDetails(slots, weekStart),
     contentHtml: weeklyDigestHtml(slots, weekStart),
     actionLabel: 'View open prayer slots',
-    actionUrl: new URL(`/musallas/${musalla.id}?date=${weekStart}`, `${baseUrl}/`).href,
+    actionUrl: new URL(`/musallas/${musalla.guid}?date=${weekStart}`, `${baseUrl}/`).href,
     logoUrl: musalla.logo_url ? absoluteUrl(musalla.logo_url) : undefined
   });
   req.session.notice=delivered?`Reminder sent to active Imams for ${openCount} open ${openCount===1?'slot':'slots'}`:'The reminder could not be sent because no active Imam recipient or email service was available';
   res.redirect(`/musallas/${req.params.id}?date=${weekStart}`);
 });
-app.post('/musallas/:id/leave', requireAuth, musallaAccess, async (req, res) => {
+app.post('/musallas/:guid/leave', requireAuth, musallaAccess, async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -636,7 +642,7 @@ app.post('/musallas/:id/leave', requireAuth, musallaAccess, async (req, res) => 
   req.session.notice='You have left the Musalla and your future prayer assignments were cleared';
   res.redirect('/');
 });
-app.get('/musallas/:id/members', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.get('/musallas/:guid/members', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [locations] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
   const musalla = locations[0];
   if (!musalla) return res.sendStatus(404);
@@ -644,37 +650,37 @@ app.get('/musallas/:id/members', requireAuth, musallaAccess, requireAdmin, async
   const sql = `SELECT u.id,u.name,u.email,u.avatar_url,IF(ms.role='','Member',ms.role) role,ms.status FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status IN ('active','disabled') ORDER BY ms.status,ms.role,u.name`;
   const [members] = await pool.execute(sql, [req.params.id]);
   const [requests] = await pool.execute("SELECT u.id,u.name,u.email,u.avatar_url,ms.status,ms.requested_role FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status='pending' ORDER BY u.name", [req.params.id]);
-  res.locals.musallaNav=musalla;
+  res.locals.musallaNav={ ...musalla, id: musalla.guid };
   res.locals.canManageMembers=true;
   res.locals.pendingApprovalCount=requests.length;
   const inviteUrl = `${baseUrl}/invite/musallas/${musalla.guid}`;
-  res.render('members', { musalla,members,requests,isAdmin,inviteUrl });
+  res.render('members', { musalla: { ...musalla, id: musalla.guid },members,requests,isAdmin,inviteUrl });
 });
-app.get('/musallas/:id/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.get('/musallas/:guid/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [rows] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
   if (!rows[0]) return res.sendStatus(404);
-  res.locals.musallaNav=rows[0];
+  res.locals.musallaNav={ ...rows[0], id: rows[0].guid };
   res.locals.canManageMembers=true;
   const [pending] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='pending'", [req.params.id]);
   res.locals.pendingApprovalCount=Number(pending[0].count);
-  res.render('musalla-profile', { musalla: rows[0] });
+  res.render('musalla-profile', { musalla: { ...rows[0], id: rows[0].guid } });
 });
-app.get('/musallas/:id/members/:userId/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.get('/musallas/:guid/members/:userId/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [rows] = await pool.execute("SELECT u.id,u.name,u.email,u.phone,u.bio,u.avatar_url,ms.role,ms.status,m.name musalla_name,m.id musalla_id FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('pending','active','disabled')", [req.params.id,req.params.userId]);
   if (!rows[0]) return res.sendStatus(404);
-  res.locals.musallaNav={ id: req.params.id };
+  res.locals.musallaNav={ id: req.musallaGuid };
   res.locals.canManageMembers=true;
   const [pending] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='pending'", [req.params.id]);
   res.locals.pendingApprovalCount=Number(pending[0].count);
-  res.type('html').set('Content-Disposition','inline').render('member-profile', { member: rows[0], isSuperAdmin: false, formAction: `/musallas/${req.params.id}/members/${req.params.userId}/profile`, backUrl: `/musallas/${req.params.id}/members` });
+  res.type('html').set('Content-Disposition','inline').render('member-profile', { member: rows[0], isSuperAdmin: false, formAction: `/musallas/${req.musallaGuid}/members/${req.params.userId}/profile`, backUrl: `/musallas/${req.musallaGuid}/members` });
 });
-app.post('/musallas/:id/members/:userId/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.post('/musallas/:guid/members/:userId/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const roles = selectedRoles(req.body);
   if (!roles.length) { req.session.notice='Select at least one role'; return res.redirect(`/musallas/${req.params.id}/members/${req.params.userId}/profile`); }
   await updateMemberRoles(req.params.id, req.params.userId, roles);
   req.session.notice='Member roles updated'; res.redirect(`/musallas/${req.params.id}/members/${req.params.userId}/profile`);
 });
-app.post('/musallas/:id/profile', requireAuth, musallaAccess, requireAdmin, logoUpload.single('logo'), async (req, res) => {
+app.post('/musallas/:guid/profile', requireAuth, musallaAccess, requireAdmin, logoUpload.single('logo'), async (req, res) => {
   const [rows] = await pool.execute('SELECT logo_url FROM musalla_locations WHERE id=?', [req.params.id]);
   const logoUrl = req.file ? `/uploads/musalla-logos/${req.file.filename}` : rows[0].logo_url;
   const salahEnabled = ['fajr','zuhr','asr','maghrib','isha'].map(prayer => req.body[`${prayer}_enabled`] === '1');
@@ -683,7 +689,7 @@ app.post('/musallas/:id/profile', requireAuth, musallaAccess, requireAdmin, logo
   await syncPrayerSchedules(req.params.id);
   req.session.notice='Musalla profile updated'; res.redirect(`/musallas/${req.params.id}/profile`);
 });
-app.post('/musallas/:id/slots/:slotId/opt-in', requireAuth, musallaAccess, requireImam, async (req, res) => {
+app.post('/musallas/:guid/slots/:slotId/opt-in', requireAuth, musallaAccess, requireImam, async (req, res) => {
   const connection = await pool.getConnection();
   let slot;
   let replacedImam = null;
@@ -763,7 +769,7 @@ app.post('/musallas/:id/slots/:slotId/opt-in', requireAuth, musallaAccess, requi
         { label: 'Replacement imam', value: req.user.name }
       ],
       actionLabel: 'View prayer schedule',
-      actionUrl: `${baseUrl}/musallas/${req.params.id}?date=${slot.prayer_date}`,
+      actionUrl: `${baseUrl}/musallas/${req.musallaGuid}?date=${slot.prayer_date}`,
       logoUrl: absoluteUrl(musalla.logo_url)
     });
   }
@@ -789,19 +795,19 @@ app.post('/musallas/:id/slots/:slotId/opt-in', requireAuth, musallaAccess, requi
     details: digestDetails(weeklySlots, weekStart),
     contentHtml: weeklyDigestHtml(weeklySlots, weekStart),
     actionLabel: 'View prayer schedule',
-    actionUrl: `${baseUrl}/musallas/${req.params.id}?date=${returnDate}`,
+    actionUrl: `${baseUrl}/musallas/${req.musallaGuid}?date=${returnDate}`,
     logoUrl: absoluteUrl(scheduleMusalla.logo_url)
   });
   req.session.notice=replacedImam?`You replaced ${replacedImam.name} and are now leading this salah`:slot.imam_user_id?'You are no longer assigned for this date':`Jazak Allahu Khayran — you are leading this salah for ${assignedDays} ${assignedDays===1?'day':'days'}`;
   res.redirect(`/musallas/${req.params.id}?date=${returnDate}`);
 });
-app.post('/musallas/:id/members/:userId/status', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.post('/musallas/:guid/members/:userId/status', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   if (Number(req.params.userId)===Number(req.user.id)) { req.session.notice='You cannot disable your own membership'; return res.redirect(`/musallas/${req.params.id}/members`); }
   if (!['active','disabled'].includes(req.body.status)) return res.sendStatus(400);
   await pool.execute("UPDATE musalla_memberships SET status=? WHERE musalla_id=? AND user_id=? AND status IN ('active','disabled')", [req.body.status,req.params.id,req.params.userId]);
   req.session.notice='Member access updated'; res.redirect(`/musallas/${req.params.id}/members`);
 });
-app.post('/musallas/:id/membership-requests/:userId/approve', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.post('/musallas/:guid/membership-requests/:userId/approve', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [admins] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='active' AND FIND_IN_SET('admin',role)>0", [req.params.id]);
   if (Number(admins[0].count)===0) { req.session.notice='A super admin must approve the initial membership'; return res.redirect(`/musallas/${req.params.id}/members`); }
   const roles = selectedRoles(req.body);
@@ -810,12 +816,12 @@ app.post('/musallas/:id/membership-requests/:userId/approve', requireAuth, musal
   req.session.notice=result.affectedRows?'Membership request approved':'Membership request is no longer pending';
   res.redirect(`/musallas/${req.params.id}/members`);
 });
-app.post('/musallas/:id/membership-requests/:userId/deny', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.post('/musallas/:guid/membership-requests/:userId/deny', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const [result] = await pool.execute("UPDATE musalla_memberships SET status='denied',role='',requested_role='' WHERE musalla_id=? AND user_id=? AND status='pending'", [req.params.id,req.params.userId]);
   req.session.notice=result.affectedRows?'Membership request denied':'Membership request is no longer pending';
   res.redirect(`/musallas/${req.params.id}/members`);
 });
-app.post('/musallas/:id/members/:userId/remove', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+app.post('/musallas/:guid/members/:userId/remove', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   if (Number(req.params.userId)===Number(req.user.id)) { req.session.notice='You cannot remove yourself'; return res.redirect(`/musallas/${req.params.id}/members`); }
   const connection = await pool.getConnection();
   try {

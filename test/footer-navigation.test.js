@@ -17,11 +17,11 @@ const baseLocals = {
 test('Musalla views replace Join with a link to the schedule', async () => {
   const html = await ejs.renderFile(footer, {
     ...baseLocals,
-    path: '/musallas/7/members',
-    musallaNav: { id: 7 }
+    path: '/musallas/demo-guid/members',
+    musallaNav: { id: 'demo-guid' }
   });
 
-  assert.match(html, /href="\/musallas\/7"[^>]*><span[^>]*>▦<\/span>Schedule/);
+  assert.match(html, /href="\/musallas\/demo-guid"[^>]*><span[^>]*>▦<\/span>Schedule/);
   assert.doesNotMatch(html, />Join<\/a>/);
 });
 

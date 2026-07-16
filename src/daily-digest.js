@@ -93,7 +93,7 @@ async function claimDigest(pool, musallaId, digestDate) {
 
 async function sendDailyAdminPrayerDigests(pool, { now = new Date(), baseUrl = process.env.BASE_URL || 'http://localhost:3000' } = {}) {
   const digestDate = easternDigestDate(now);
-  const [musallas] = await pool.execute(`SELECT id,name,timezone,logo_url FROM musalla_locations WHERE is_disabled=FALSE AND is_test=${TEST_MODE?'TRUE':'FALSE'} ORDER BY id`);
+  const [musallas] = await pool.execute(`SELECT id,guid,name,timezone,logo_url FROM musalla_locations WHERE is_disabled=FALSE AND is_test=${TEST_MODE?'TRUE':'FALSE'} ORDER BY id`);
   let sent = 0;
   for (const musalla of musallas) {
     const token = await claimDigest(pool, musalla.id, digestDate);
@@ -110,7 +110,7 @@ async function sendDailyAdminPrayerDigests(pool, { now = new Date(), baseUrl = p
       details,
       contentHtml: weeklyDigestHtml(slots, today),
       actionLabel: 'View prayer schedule',
-      actionUrl: new URL(`/musallas/${musalla.id}?date=${today}`, `${baseUrl}/`).href,
+      actionUrl: new URL(`/musallas/${musalla.guid}?date=${today}`, `${baseUrl}/`).href,
       logoUrl: musalla.logo_url ? new URL(musalla.logo_url, `${baseUrl}/`).href : undefined
     });
     if (delivered) {
