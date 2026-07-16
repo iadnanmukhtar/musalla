@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   digestDetails,
+  weeklyDigestHtml,
+  weeklyDigestRows,
   easternDigestDate,
   isPastEasternNoon,
   millisecondsUntilNextEasternNoon
@@ -20,15 +22,24 @@ test('finds the next noon in America/New_York', () => {
   assert.equal(millisecondsUntilNextEasternNoon(new Date('2026-07-15T16:01:00Z')), 23 * 60 * 60 * 1000 + 59 * 60 * 1000);
 });
 
-test('lists available and assigned slots and labels the following Fajr', () => {
-  const details = digestDetails([
+test('builds a seven-day, five-prayer coverage view', () => {
+  const slots = [
     { prayer_date: '2026-07-15', prayer_name: 'Asr', imam_name: 'Amina' },
-    { prayer_date: '2026-07-16', prayer_name: 'Fajr', imam_name: null },
-    { prayer_date: '2026-07-15', prayer_name: 'Fajr', imam_name: null }
-  ], '2026-07-16');
-  assert.deepEqual(details, [
-    { label: 'Fajr', value: 'Available' },
-    { label: 'Asr', value: 'Amina' },
-    { label: 'Next Fajr · Thu, Jul 16', value: 'Available' }
-  ]);
+    { prayer_date: '2026-07-15', prayer_name: 'Fajr', imam_name: null },
+    { prayer_date: '2026-07-17', prayer_name: 'Jumuah 1', imam_name: null },
+    { prayer_date: '2026-07-17', prayer_name: 'Jumuah 2', imam_name: 'Bilal' }
+  ];
+  const rows = weeklyDigestRows(slots, '2026-07-15');
+  const details = digestDetails(slots, '2026-07-15');
+  const html = weeklyDigestHtml(slots, '2026-07-15');
+
+  assert.equal(rows.length, 7);
+  assert.ok(rows.every(row => row.prayers.length === 5));
+  assert.deepEqual(rows[0].prayers[0], { prayer: 'Fajr', value: 'Open', open: true });
+  assert.deepEqual(rows[0].prayers[2], { prayer: 'Asr', value: 'Amina', open: false });
+  assert.deepEqual(rows[2].prayers[1], { prayer: 'Zuhr', value: 'J1: Open · J2: Bilal', open: true });
+  assert.equal(details.length, 7);
+  assert.match(html, /Seven-day prayer coverage/);
+  assert.match(html, /J1: Open · J2: Bilal/);
+  assert.match(html, /#fff9db/);
 });

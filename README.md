@@ -96,9 +96,9 @@ Email delivery requires `SMTP_HOST` and `MAIL_FROM`. Configure `SMTP_PORT`, `SMT
 
 The application sends notifications when a Musalla is submitted for review and when a new or renewed membership request is created, including a request originating from an Imam invitation.
 
-At noon in the `America/New_York` timezone each day, every active Musalla's active local administrators receive a prayer-coverage digest. It lists today's available and assigned slots with the assigned Imam's name and includes the following day's Fajr slot. Persisted delivery records prevent duplicate sends after restarts or when multiple application instances are running.
+At noon in the `America/New_York` timezone each day, every active Musalla's active Imam members receive a prayer-coverage digest. It shows the next seven days as a compact weekly table, highlights open slots that still need an Imam, and links directly to the Musalla schedule. Persisted delivery records prevent duplicate sends after restarts or when multiple application instances are running.
 
-When `TEST_MODE=true`, daily digests are restricted to test Musallas and test administrators so a test process cannot notify production recipients.
+When `TEST_MODE=true`, daily digests are restricted to test Musallas and test Imams so a test process cannot notify production recipients.
 
 Membership notifications go to every active administrator of the affected Musalla and every active database-designated super admin. Addresses are normalized and deduplicated. There is no `SUPER_ADMIN_EMAIL` setting; super-admin recipients come from the database.
 

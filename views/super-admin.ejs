@@ -1,8 +1,72 @@
-<%- include('partials/head',{title:'Super Admin'}) %><%- include('partials/nav') %>
+<%- include('partials/head',{title:'Super Admin'}) %>
+<%- include('partials/nav') %>
 <main>
-  <header class="page-head"><p class="eyebrow">PLATFORM MANAGEMENT</p><h1>Super Admin</h1><p>Manage every Musalla without entering the imam and Musalla-admin workflow.</p></header>
+  <header class="page-head">
+<p class="eyebrow">PLATFORM MANAGEMENT</p>
+<h1>Super Admin</h1>
+<p>Manage every Musalla without entering the imam and Musalla-admin workflow.</p>
+</header>
   <a class="button super-register-button" href="/register-musalla">＋ Register a new Musalla</a>
-  <div class="section-title"><h2>Musallas</h2><span><%= musallas.length %></span><% if(initialApprovalCount){ %><b class="approval-count-badge"><%= initialApprovalCount %> new</b><% } %></div>
-  <div class="admin-musalla-list"><% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; const needsFirstApproval=Number(m.pending_count)>0&&Number(m.admin_count)===0; %><article class="surface admin-musalla <%= m.is_disabled?'disabled':'' %>"><div class="admin-musalla-info"><a class="mosque-icon musalla-logo-link" href="/super-admin/musallas/<%= m.id %>" aria-label="Manage <%= m.name %>"><% if(m.logo_url){ %><img src="<%= m.logo_url %>" alt=""><% } else { %>⌂<% } %></a><div><h3><a class="admin-musalla-name" href="/super-admin/musallas/<%= m.id %>"><%= m.name %></a><% if(needsFirstApproval){ %><span class="new-musalla-badge"><%= m.pending_count %> awaiting approval</span><% } %></h3><% if(m.address){ %><p><a class="maps-link" href="geo:0,0?q=<%= encodeURIComponent(m.address) %>"><%= m.address %></a></p><% } else { %><p>Address not set</p><% } %><small><%= m.member_count %> member<%= Number(m.member_count)===1?'':'s' %><% if(jumuahSlotCount){ %> · <%= jumuahSlotCount %> Jumuah slot<%= jumuahSlotCount===1?'':'s' %><% } %><% if(m.is_disabled){ %> · Disabled<% } %></small></div></div><div class="admin-actions"><form action="/super-admin/musallas/<%= m.id %>/status" method="post"><button class="chip"><%= m.is_disabled?'Enable':'Disable' %></button></form><form action="/super-admin/musallas/<%= m.id %>/delete" method="post" onsubmit="return confirm('Delete <%= m.name.replace(/'/g, '\\&#39;') %>? This permanently removes its members and schedules.')"><button class="chip danger">Delete</button></form></div></article><% }) %><% if(!musallas.length){ %><div class="empty">No Musallas have been registered.</div><% } %></div>
+  <div class="section-title">
+<h2>Musallas</h2>
+<span>
+<%= musallas.length %>
+</span>
+<% if(initialApprovalCount){ %>
+<b class="approval-count-badge">
+<%= initialApprovalCount %> new</b>
+<% } %>
+</div>
+  <div class="admin-musalla-list">
+<% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; const needsFirstApproval=Number(m.pending_count)>0&&Number(m.admin_count)===0; %>
+<article class="surface admin-musalla <%= m.is_disabled?'disabled':'' %>">
+<div class="admin-musalla-info">
+<a class="mosque-icon musalla-logo-link" href="/super-admin/musallas/<%= m.id %>" aria-label="Manage <%= m.name %>">
+<% if(m.logo_url){ %>
+<img src="<%= m.logo_url %>" alt="">
+<% } else { %>⌂<% } %>
+</a>
+<div>
+<h3>
+<a class="admin-musalla-name" href="/super-admin/musallas/<%= m.id %>">
+<%= m.name %>
+</a>
+<% if(needsFirstApproval){ %>
+<span class="new-musalla-badge">
+<%= m.pending_count %> awaiting approval</span>
+<% } %>
+</h3>
+<% if(m.address){ %>
+<p>
+<a class="maps-link" href="geo:0,0?q=<%= encodeURIComponent(m.address) %>">
+<%= m.address %>
+</a>
+</p>
+<% } else { %>
+<p>Address not set</p>
+<% } %>
+<small>
+<%= m.member_count %> member<%= Number(m.member_count)===1?'':'s' %>
+ · <%= jumuahSlotCount ? `${jumuahSlotCount} Jumuah slot${jumuahSlotCount===1?'':'s'}` : 'No Jumuah slot' %>
+<% if(m.is_disabled){ %> · Disabled<% } %>
+</small>
+</div>
+</div>
+<div class="admin-actions">
+<form action="/super-admin/musallas/<%= m.id %>/status" method="post">
+<button class="chip">
+<%= m.is_disabled?'Enable':'Disable' %>
+</button>
+</form>
+<form action="/super-admin/musallas/<%= m.id %>/delete" method="post" onsubmit="return confirm('Delete <%= m.name.replace(/'/g, '\\&#39;') %>? This permanently removes its members and schedules.')">
+<button class="chip danger">Delete</button>
+</form>
+</div>
+</article>
+<% }) %>
+<% if(!musallas.length){ %>
+<div class="empty">No Musallas have been registered.</div>
+<% } %>
+</div>
 </main>
 <%- include('partials/foot') %>

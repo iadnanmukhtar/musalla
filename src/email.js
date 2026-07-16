@@ -21,7 +21,7 @@ function notificationText({ heading, message, details = [], actionLabel, actionU
   return lines.join('\n');
 }
 
-function notificationHtml({ preheader, heading, message, details = [], actionLabel, actionUrl, logoUrl }) {
+function notificationHtml({ preheader, heading, message, details = [], contentHtml = '', actionLabel, actionUrl, logoUrl }) {
   const resolvedLogoUrl = logoUrl || new URL('/icon-192.png', process.env.BASE_URL || 'http://localhost:3000').href;
   const detailRows = details.map(({ label, value }) => `
     <tr>
@@ -57,7 +57,7 @@ function notificationHtml({ preheader, heading, message, details = [], actionLab
           <p style="margin:0 0 8px;color:#0a9dce;font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;">Community update</p>
           <h1 class="brand-title" style="margin:0 0 14px;color:#087fab;font-size:30px;line-height:1.2;font-weight:750;">${escapeHtml(heading)}</h1>
           <p style="margin:0 0 24px;color:#425b64;font-size:15px;line-height:1.65;">${escapeHtml(message)}</p>
-          ${details.length ? `<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f7fbfd;border:1px solid #e3eef2;border-radius:12px;overflow:hidden;">${detailRows}</table>` : ''}
+          ${contentHtml || (details.length ? `<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f7fbfd;border:1px solid #e3eef2;border-radius:12px;overflow:hidden;">${detailRows}</table>` : '')}
           ${action}
         </td></tr>
         <tr><td class="email-pad" style="padding:22px 36px;background:#f7fbfd;border-top:1px solid #e3eef2;color:#607780;font-size:12px;line-height:1.55;">
@@ -93,7 +93,7 @@ function smtpTransport() {
   return transporter;
 }
 
-async function sendNotification(pool, { subject, text, html, preheader, heading, message, details, actionLabel, actionUrl, logoUrl, additionalRecipients = [], includeSuperAdmins = true }) {
+async function sendNotification(pool, { subject, text, html, preheader, heading, message, details, contentHtml, actionLabel, actionUrl, logoUrl, additionalRecipients = [], includeSuperAdmins = true }) {
   const mailer = smtpTransport();
   if (!mailer) return false;
   try {
@@ -107,7 +107,7 @@ async function sendNotification(pool, { subject, text, html, preheader, heading,
       console.warn('Email notification skipped because no active database recipient was found.');
       return false;
     }
-    const content = { heading: heading || subject, message: message || text || '', details, actionLabel, actionUrl, logoUrl };
+    const content = { heading: heading || subject, message: message || text || '', details, contentHtml, actionLabel, actionUrl, logoUrl };
     await mailer.sendMail({
       from: process.env.MAIL_FROM,
       bcc: recipients.join(','),
@@ -136,10 +136,15 @@ async function notifyMusallaAdmins(pool, musallaId, message) {
   return sendNotification(pool, { ...message, additionalRecipients: admins.map(admin=>admin.email), includeSuperAdmins: false });
 }
 
+async function notifyMusallaImams(pool, musallaId, message) {
+  const [imams] = await pool.execute(`SELECT DISTINCT u.email FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.status='active' AND FIND_IN_SET('imam',ms.role)>0 AND u.is_disabled=FALSE AND u.is_test=${TEST_MODE?'TRUE':'FALSE'}`, [musallaId]);
+  return sendNotification(pool, { ...message, additionalRecipients: imams.map(imam=>imam.email), includeSuperAdmins: false });
+}
+
 async function notifyUser(pool, userId, message) {
   const [users] = await pool.execute(`SELECT email FROM musalla_users WHERE id=? AND is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`, [userId]);
   if (!users[0]) return false;
   return sendNotification(pool, { ...message, additionalRecipients: [users[0].email], includeSuperAdmins: false });
 }
 
-module.exports = { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaAdmins, notifyUser };
+module.exports = { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaAdmins, notifyMusallaImams, notifyUser };

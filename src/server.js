@@ -9,8 +9,8 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules, TEST_MODE } = require('./db');
-const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyUser } = require('./email');
-const { startDailyAdminPrayerDigest } = require('./daily-digest');
+const { notifySuperAdmins, notifyMusallaAdminsAndSuperAdmins, notifyMusallaImams, notifyUser } = require('./email');
+const { digestDetails, weeklyDigestHtml, startDailyAdminPrayerDigest } = require('./daily-digest');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -213,7 +213,7 @@ app.get('/about', (req, res) => {
 });
 app.get('/musallas', async (req, res, next) => {
   try {
-    const [musallas] = await pool.query(`SELECT guid,name,address,about,logo_url FROM musalla_locations m WHERE is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY name`);
+    const [musallas] = await pool.query(`SELECT m.guid,m.name,m.address,m.about,m.logo_url,m.jumuah_1_enabled,m.jumuah_2_enabled,m.jumuah_3_enabled,(SELECT COUNT(*) FROM musalla_memberships members WHERE members.musalla_id=m.id AND members.status='active') member_count FROM musalla_locations m WHERE is_disabled=FALSE AND ${visibleMusalla('m')} ORDER BY name`);
     res.locals.hideNavigation = true;
     res.render('public-musallas', { musallas });
   } catch (error) { next(error); }
@@ -368,8 +368,9 @@ app.post('/super-admin/musallas/:id', requireAuth, requireSuperAdmin, logoUpload
   const musalla = rows[0];
   if (!musalla) return res.sendStatus(404);
   const logoUrl = req.file ? `/uploads/musalla-logos/${req.file.filename}` : musalla.logo_url;
+  const salahEnabled = ['fajr','zuhr','asr','maghrib','isha'].map(prayer => req.body[`${prayer}_enabled`] === '1');
   const jumuahEnabled = [1,2,3].map(number => req.body[`jumuah_${number}_enabled`] === '1');
-  await pool.execute('UPDATE musalla_locations SET name=?,address=?,about=?,timetable_url=?,timezone=?,logo_url=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.about?.trim()||null,req.body.timetable_url?.trim()||'',req.body.timezone.trim()||'America/Chicago',logoUrl,...jumuahEnabled,req.params.id]);
+  await pool.execute('UPDATE musalla_locations SET name=?,address=?,about=?,timetable_url=?,timezone=?,logo_url=?,fajr_enabled=?,zuhr_enabled=?,asr_enabled=?,maghrib_enabled=?,isha_enabled=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.about?.trim()||null,req.body.timetable_url?.trim()||'',req.body.timezone.trim()||'America/Chicago',logoUrl,...salahEnabled,...jumuahEnabled,req.params.id]);
   await syncPrayerSchedules(req.params.id);
   req.session.notice='Musalla updated'; res.redirect(`/super-admin/musallas/${req.params.id}`);
 });
@@ -413,7 +414,7 @@ app.get('/membership-requests', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
   const invitedMusallaId = Number.parseInt(req.query.musalla, 10) || 0;
   const selectedMusallaId = invitedMusallaId || Number.parseInt(req.query.join, 10) || 0;
-  const [musallas] = await pool.execute(`SELECT m.id,m.guid,m.name,m.address,m.logo_url,ms.status FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE AND (ms.status IS NULL OR ms.status IN ('pending','denied')) AND ${visibleMusalla('m')} ORDER BY (m.id=?) DESC,CASE ms.status WHEN 'pending' THEN 0 WHEN 'denied' THEN 1 ELSE 2 END,m.name`, [req.user.id,selectedMusallaId]);
+  const [musallas] = await pool.execute(`SELECT m.id,m.guid,m.name,m.address,m.logo_url,m.jumuah_1_enabled,m.jumuah_2_enabled,m.jumuah_3_enabled,ms.status,(SELECT COUNT(*) FROM musalla_memberships members WHERE members.musalla_id=m.id AND members.status='active') member_count FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE AND (ms.status IS NULL OR ms.status IN ('pending','denied')) AND ${visibleMusalla('m')} ORDER BY (m.id=?) DESC,CASE ms.status WHEN 'pending' THEN 0 WHEN 'denied' THEN 1 ELSE 2 END,m.name`, [req.user.id,selectedMusallaId]);
   res.render('membership-requests', { musallas,selectedMusallaId,invitedMusallaId });
 });
 app.post('/membership-requests/:id', requireAuth, async (req, res) => {
@@ -451,7 +452,7 @@ app.get('/register/musallas', requireAuth, async (req, res) => {
   if (isSuperAdminMode(req)) return res.redirect('/super-admin');
   const [active] = await pool.execute("SELECT 1 FROM musalla_memberships WHERE user_id=? AND status='active' LIMIT 1", [req.user.id]);
   if (active[0]) return res.redirect('/');
-  const [musallas] = await pool.execute(`SELECT m.id,m.guid,m.name,m.address,m.logo_url,ms.status FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE AND (ms.status IS NULL OR ms.status IN ('pending','denied')) AND ${visibleMusalla('m')} ORDER BY CASE ms.status WHEN 'pending' THEN 0 WHEN 'denied' THEN 1 ELSE 2 END,m.name`, [req.user.id]);
+  const [musallas] = await pool.execute(`SELECT m.id,m.guid,m.name,m.address,m.logo_url,m.jumuah_1_enabled,m.jumuah_2_enabled,m.jumuah_3_enabled,ms.status,(SELECT COUNT(*) FROM musalla_memberships members WHERE members.musalla_id=m.id AND members.status='active') member_count FROM musalla_locations m LEFT JOIN musalla_memberships ms ON ms.musalla_id=m.id AND ms.user_id=? WHERE m.is_disabled=FALSE AND (ms.status IS NULL OR ms.status IN ('pending','denied')) AND ${visibleMusalla('m')} ORDER BY CASE ms.status WHEN 'pending' THEN 0 WHEN 'denied' THEN 1 ELSE 2 END,m.name`, [req.user.id]);
   res.render('register-musallas', { musallas });
 });
 app.post('/register/musallas', requireAuth, async (req, res) => {
@@ -567,15 +568,15 @@ app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
   const musalla = locations[0];
   const { firstDate,lastDate,today } = scheduleBounds(new Date(),musalla.timezone);
   const requestedDate = req.query.navigate || req.query.date || today;
-  const date = requestedDate >= firstDate && requestedDate <= lastDate ? requestedDate : today;
-  const [slots] = await pool.execute(`SELECT p.*,u.name imam_name,u.avatar_url FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date=? ORDER BY FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [req.params.id,date]);
-  let nextFajr = null;
-  if (date < lastDate) {
-    const nextDate = new Date(`${date}T12:00:00Z`);
-    nextDate.setUTCDate(nextDate.getUTCDate()+1);
-    const [nextFajrSlots] = await pool.execute(`SELECT p.*,u.name imam_name,u.avatar_url FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date=? AND p.prayer_name='Fajr'`, [req.params.id,nextDate.toISOString().slice(0,10)]);
-    nextFajr = nextFajrSlots[0] || null;
-  }
+  let date = requestedDate >= firstDate && requestedDate <= lastDate ? requestedDate : today;
+  const finalWeekStart = new Date(`${lastDate}T12:00:00Z`);
+  finalWeekStart.setUTCDate(finalWeekStart.getUTCDate()-6);
+  const finalWeekStartValue = finalWeekStart.toISOString().slice(0,10);
+  if (date > finalWeekStartValue) date = finalWeekStartValue;
+  const weekEnd = new Date(`${date}T12:00:00Z`);
+  weekEnd.setUTCDate(weekEnd.getUTCDate()+6);
+  const weekEndDate = weekEnd.toISOString().slice(0,10);
+  const [slots] = await pool.execute(`SELECT p.*,u.name imam_name,u.avatar_url FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date BETWEEN ? AND ? ORDER BY p.prayer_date,FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [req.params.id,date,weekEndDate]);
   const isAdmin = hasRole(req.membership, 'admin');
   const canLead = hasRole(req.membership, 'imam');
   res.locals.musallaNav=musalla;
@@ -584,7 +585,42 @@ app.get('/musallas/:id', requireAuth, musallaAccess, async (req, res) => {
     const [pending] = await pool.execute("SELECT COUNT(*) count FROM musalla_memberships WHERE musalla_id=? AND status='pending'", [req.params.id]);
     res.locals.pendingApprovalCount=Number(pending[0].count);
   }
-  res.render('musalla', { musalla,slots,nextFajr,date,today,firstDate,lastDate,isAdmin,canLead });
+  res.render('musalla', { musalla,slots,date,weekEndDate,today,firstDate,lastDate,finalWeekStart: finalWeekStartValue,isAdmin,canLead });
+});
+app.post('/musallas/:id/remind-imams', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+  const [locations] = await pool.execute('SELECT * FROM musalla_locations WHERE id=?', [req.params.id]);
+  const musalla = locations[0];
+  if (!musalla) return res.sendStatus(404);
+  const { firstDate,lastDate,today } = scheduleBounds(new Date(),musalla.timezone);
+  const finalWeekStart = new Date(`${lastDate}T12:00:00Z`);
+  finalWeekStart.setUTCDate(finalWeekStart.getUTCDate()-6);
+  const finalWeekStartValue = finalWeekStart.toISOString().slice(0,10);
+  const requestedDate = req.body.date;
+  let weekStart = requestedDate >= firstDate && requestedDate <= lastDate ? requestedDate : today;
+  if (weekStart > finalWeekStartValue) weekStart = finalWeekStartValue;
+  const weekEnd = new Date(`${weekStart}T12:00:00Z`);
+  weekEnd.setUTCDate(weekEnd.getUTCDate()+6);
+  const weekEndDate = weekEnd.toISOString().slice(0,10);
+  const [slots] = await pool.execute(`SELECT p.prayer_date,p.prayer_name,u.name imam_name FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date BETWEEN ? AND ? ORDER BY p.prayer_date,FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [req.params.id,weekStart,weekEndDate]);
+  const openCount = slots.filter(slot => !slot.imam_name).length;
+  if (!openCount) {
+    req.session.notice='Every available prayer slot in this week is already filled';
+    return res.redirect(`/musallas/${req.params.id}?date=${weekStart}`);
+  }
+  const displayDate = value => new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(new Date(`${value}T12:00:00Z`));
+  const delivered = await notifyMusallaImams(pool, musalla.id, {
+    subject: `${musalla.name} needs Imam coverage · ${displayDate(weekStart)}–${displayDate(weekEndDate)}`,
+    preheader: `${openCount} prayer ${openCount===1?'slot needs':'slots need'} an Imam over the next seven days.`,
+    heading: 'Please help fill the prayer schedule',
+    message: `${musalla.name} has ${openCount} open prayer ${openCount===1?'slot':'slots'} in this week. Please review the highlighted openings and opt in where you can lead.`,
+    details: digestDetails(slots, weekStart),
+    contentHtml: weeklyDigestHtml(slots, weekStart),
+    actionLabel: 'View open prayer slots',
+    actionUrl: new URL(`/musallas/${musalla.id}?date=${weekStart}`, `${baseUrl}/`).href,
+    logoUrl: musalla.logo_url ? absoluteUrl(musalla.logo_url) : undefined
+  });
+  req.session.notice=delivered?`Reminder sent to active Imams for ${openCount} open ${openCount===1?'slot':'slots'}`:'The reminder could not be sent because no active Imam recipient or email service was available';
+  res.redirect(`/musallas/${req.params.id}?date=${weekStart}`);
 });
 app.post('/musallas/:id/leave', requireAuth, musallaAccess, async (req, res) => {
   const connection = await pool.getConnection();
@@ -641,8 +677,9 @@ app.post('/musallas/:id/members/:userId/profile', requireAuth, musallaAccess, re
 app.post('/musallas/:id/profile', requireAuth, musallaAccess, requireAdmin, logoUpload.single('logo'), async (req, res) => {
   const [rows] = await pool.execute('SELECT logo_url FROM musalla_locations WHERE id=?', [req.params.id]);
   const logoUrl = req.file ? `/uploads/musalla-logos/${req.file.filename}` : rows[0].logo_url;
+  const salahEnabled = ['fajr','zuhr','asr','maghrib','isha'].map(prayer => req.body[`${prayer}_enabled`] === '1');
   const jumuahEnabled = [1,2,3].map(number => req.body[`jumuah_${number}_enabled`] === '1');
-  await pool.execute('UPDATE musalla_locations SET name=?,address=?,about=?,timetable_url=?,logo_url=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.about?.trim()||null,req.body.timetable_url?.trim()||'',logoUrl,...jumuahEnabled,req.params.id]);
+  await pool.execute('UPDATE musalla_locations SET name=?,address=?,about=?,timetable_url=?,logo_url=?,fajr_enabled=?,zuhr_enabled=?,asr_enabled=?,maghrib_enabled=?,isha_enabled=?,jumuah_1_enabled=?,jumuah_2_enabled=?,jumuah_3_enabled=? WHERE id=?', [req.body.name.trim(),req.body.address.trim(),req.body.about?.trim()||null,req.body.timetable_url?.trim()||'',logoUrl,...salahEnabled,...jumuahEnabled,req.params.id]);
   await syncPrayerSchedules(req.params.id);
   req.session.notice='Musalla profile updated'; res.redirect(`/musallas/${req.params.id}/profile`);
 });
@@ -658,10 +695,21 @@ app.post('/musallas/:id/slots/:slotId/opt-in', requireAuth, musallaAccess, requi
     const [rows] = await connection.execute('SELECT * FROM musalla_prayer_slots WHERE id=? AND musalla_id=? FOR UPDATE', [req.params.slotId,req.params.id]);
     slot = rows[0];
     if (!slot) { await connection.rollback(); return res.sendStatus(404); }
-    const previousSlotDate = new Date(`${slot.prayer_date}T12:00:00Z`);
-    previousSlotDate.setUTCDate(previousSlotDate.getUTCDate()-1);
-    const allowedReturnDates = [slot.prayer_date,previousSlotDate.toISOString().slice(0,10)];
-    returnDate = allowedReturnDates.includes(req.body.return_date) ? req.body.return_date : slot.prayer_date;
+    if (slot.prayer_name === 'Zuhr' && new Date(`${slot.prayer_date}T12:00:00Z`).getUTCDay() === 5) {
+      const [locations] = await connection.execute('SELECT jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE id=?', [req.params.id]);
+      const offersJumuah = locations[0] && [1,2,3].some(number => locations[0][`jumuah_${number}_enabled`]);
+      if (!offersJumuah) {
+        await connection.rollback();
+        req.session.notice='This Musalla does not offer a Friday Zuhr or Jumuah slot';
+        return res.redirect(`/musallas/${req.params.id}?date=${req.body.return_date || slot.prayer_date}`);
+      }
+    }
+    const earliestReturnDate = new Date(`${slot.prayer_date}T12:00:00Z`);
+    earliestReturnDate.setUTCDate(earliestReturnDate.getUTCDate()-6);
+    const requestedReturnDate = req.body.return_date;
+    returnDate = requestedReturnDate >= earliestReturnDate.toISOString().slice(0,10) && requestedReturnDate <= slot.prayer_date
+      ? requestedReturnDate
+      : slot.prayer_date;
     if (slot.imam_user_id && Number(slot.imam_user_id)!==Number(req.user.id)) {
       if (Number(req.body.replace_imam_id)!==Number(slot.imam_user_id)) {
         await connection.rollback();

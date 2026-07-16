@@ -10,6 +10,15 @@
     <label>Public page<input value="/m/<%= musalla.guid %>" readonly><small><a href="/m/<%= musalla.guid %>" target="_blank">View public page</a></small></label>
     <label>Prayer timetable or app link<input name="timetable_url" type="url" value="<%= musalla.timetable_url %>" placeholder="https://..."><small>This link appears on the Musalla roster.</small></label>
     <details class="settings-panel">
+      <summary><span>Salah slots</span><small>Daily opt-in slots</small></summary>
+      <div class="settings-panel-content">
+        <p>Choose which daily Salah slots appear on the schedule for Imam opt-in.</p>
+        <% ['Fajr','Zuhr','Asr','Maghrib','Isha'].forEach(prayer => { const field=`${prayer.toLowerCase()}_enabled`; %>
+          <label class="toggle-setting"><span><b><%= prayer %></b><small>Show this slot on the schedule</small></span><input type="checkbox" name="<%= field %>" value="1" <%= musalla[field]?'checked':'' %>></label>
+        <% }) %>
+      </div>
+    </details>
+    <details class="settings-panel">
       <summary><span>Jumuah</span><small>Friday prayer slots</small></summary>
       <div class="settings-panel-content">
         <p>Enable up to three Jumuah slots. On Fridays, enabled slots replace Zuhr on the imam roster.</p>

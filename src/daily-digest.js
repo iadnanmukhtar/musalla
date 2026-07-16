@@ -1,9 +1,8 @@
 const crypto = require('crypto');
 const { scheduleBounds, TEST_MODE } = require('./db');
-const { notifyMusallaAdmins } = require('./email');
+const { notifyMusallaImams } = require('./email');
 
 const DIGEST_TIMEZONE = 'America/New_York';
-const PRAYER_ORDER = ['Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha'];
 
 function zonedParts(now, timeZone) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -33,9 +32,9 @@ function millisecondsUntilNextEasternNoon(now = new Date()) {
   return 24 * 60 * 60 * 1000;
 }
 
-function nextIsoDate(date) {
+function addDays(date, days) {
   const value = new Date(`${date}T12:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + 1);
+  value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
 }
 
@@ -44,15 +43,45 @@ function displayDate(date) {
     .format(new Date(`${date}T12:00:00Z`));
 }
 
-function digestDetails(slots, tomorrow) {
-  const ordered = [...slots].sort((a, b) => {
-    if (a.prayer_date !== b.prayer_date) return a.prayer_date.localeCompare(b.prayer_date);
-    return PRAYER_ORDER.indexOf(a.prayer_name) - PRAYER_ORDER.indexOf(b.prayer_name);
+function escapeHtml(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function weeklyDigestRows(slots, weekStart) {
+  const prayers = ['Fajr','Zuhr','Asr','Maghrib','Isha'];
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index);
+    const dateSlots = slots.filter(slot => slot.prayer_date === date);
+    return {
+      date,
+      label: displayDate(date),
+      prayers: prayers.map(prayer => {
+        const matching = dateSlots.filter(slot => prayer === 'Zuhr'
+          ? slot.prayer_name === 'Zuhr' || slot.prayer_name.startsWith('Jumuah')
+          : slot.prayer_name === prayer);
+        if (!matching.length) return { prayer, value: '—', open: false };
+        const value = matching.map(slot => {
+          const prefix = slot.prayer_name.startsWith('Jumuah') ? `${slot.prayer_name.replace('Jumuah ', 'J')}: ` : '';
+          return `${prefix}${slot.imam_name || 'Open'}`;
+        }).join(' · ');
+        return { prayer, value, open: matching.some(slot => !slot.imam_name) };
+      })
+    };
   });
-  return ordered.map(slot => ({
-    label: slot.prayer_date === tomorrow ? `Next Fajr · ${displayDate(tomorrow)}` : slot.prayer_name,
-    value: slot.imam_name || 'Available'
+}
+
+function digestDetails(slots, weekStart) {
+  return weeklyDigestRows(slots, weekStart).map(row => ({
+    label: row.label,
+    value: row.prayers.map(item => `${item.prayer}: ${item.value}`).join(' | ')
   }));
+}
+
+function weeklyDigestHtml(slots, weekStart) {
+  const rows = weeklyDigestRows(slots, weekStart);
+  const headers = ['Day','Fajr','Zuhr','Asr','Maghrib','Isha'].map(label => `<th style="padding:8px 3px;background:#eef7fa;border-bottom:1px solid #d7e8ee;color:#087fab;font-size:10px;text-transform:uppercase;">${label}</th>`).join('');
+  const body = rows.map(row => `<tr><th style="padding:8px 4px;border-bottom:1px solid #e3eef2;color:#087fab;font-size:10px;text-align:left;white-space:nowrap;">${escapeHtml(row.label.replace(',', ''))}</th>${row.prayers.map(item => `<td style="padding:8px 3px;border-bottom:1px solid #e3eef2;background:${item.open?'#fff9db':'#ffffff'};color:${item.open?'#725b12':'#425b64'};font-size:10px;font-weight:${item.open?'700':'600'};text-align:center;overflow-wrap:anywhere;">${escapeHtml(item.value)}</td>`).join('')}</tr>`).join('');
+  return `<div style="overflow-x:auto;"><table role="table" border="0" cellpadding="0" cellspacing="0" width="100%" aria-label="Seven-day prayer coverage" style="width:100%;border:1px solid #d7e8ee;border-radius:10px;border-collapse:separate;border-spacing:0;overflow:hidden;table-layout:fixed;"><thead><tr>${headers}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 async function claimDigest(pool, musallaId, digestDate) {
@@ -70,14 +99,16 @@ async function sendDailyAdminPrayerDigests(pool, { now = new Date(), baseUrl = p
     const token = await claimDigest(pool, musalla.id, digestDate);
     if (!token) continue;
     const { today } = scheduleBounds(now, musalla.timezone);
-    const tomorrow = nextIsoDate(today);
-    const [slots] = await pool.execute(`SELECT p.prayer_date,p.prayer_name,u.name imam_name FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND (p.prayer_date=? OR (p.prayer_date=? AND p.prayer_name='Fajr')) ORDER BY p.prayer_date,FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [musalla.id,today,tomorrow]);
-    const delivered = await notifyMusallaAdmins(pool, musalla.id, {
-      subject: `${musalla.name} prayer coverage for ${displayDate(today)}`,
-      preheader: 'See available and assigned prayer slots, including the next Fajr slot.',
-      heading: 'Daily prayer coverage',
-      message: `Here is today’s prayer roster for ${musalla.name}, including tomorrow’s Fajr. Available slots still need an imam.`,
-      details: digestDetails(slots, tomorrow),
+    const weekEnd = addDays(today, 6);
+    const [slots] = await pool.execute(`SELECT p.prayer_date,p.prayer_name,u.name imam_name FROM musalla_prayer_slots p LEFT JOIN musalla_users u ON u.id=p.imam_user_id WHERE p.musalla_id=? AND p.prayer_date BETWEEN ? AND ? ORDER BY p.prayer_date,FIELD(p.prayer_name,'Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha')`, [musalla.id,today,weekEnd]);
+    const details = digestDetails(slots, today);
+    const delivered = await notifyMusallaImams(pool, musalla.id, {
+      subject: `${musalla.name} weekly prayer coverage · ${displayDate(today)}–${displayDate(weekEnd)}`,
+      preheader: 'See which prayer slots still need an imam over the next seven days.',
+      heading: 'Weekly prayer coverage',
+      message: `Here is the next seven days of prayer coverage for ${musalla.name}. Yellow “Open” slots still need an imam.`,
+      details,
+      contentHtml: weeklyDigestHtml(slots, today),
       actionLabel: 'View prayer schedule',
       actionUrl: new URL(`/musallas/${musalla.id}?date=${today}`, `${baseUrl}/`).href,
       logoUrl: musalla.logo_url ? new URL(musalla.logo_url, `${baseUrl}/`).href : undefined
@@ -110,4 +141,4 @@ function startDailyAdminPrayerDigest(pool, options = {}) {
   return () => clearTimeout(timer);
 }
 
-module.exports = { DIGEST_TIMEZONE, digestDetails, easternDigestDate, isPastEasternNoon, millisecondsUntilNextEasternNoon, sendDailyAdminPrayerDigests, startDailyAdminPrayerDigest };
+module.exports = { DIGEST_TIMEZONE, digestDetails, weeklyDigestHtml, weeklyDigestRows, easternDigestDate, isPastEasternNoon, millisecondsUntilNextEasternNoon, sendDailyAdminPrayerDigests, startDailyAdminPrayerDigest };

@@ -1,3 +1,98 @@
-<%- include('partials/head',{title:'Home'}) %><%- include('partials/nav') %>
-<main><header class="page-head"><p class="eyebrow">al-salamu alaykum</p><h1><%= user.name.split(' ')[0] %></h1><p>Where would you like to serve today?</p></header><section><div class="section-title"><h2>Your musallas</h2><span id="musalla-count"><%= musallas.length %></span></div><label class="content-filter"><span class="sr-only">Filter Musallas</span><input id="musalla-filter" type="search" placeholder="Find a Musalla" autocomplete="off"></label><div class="card-list" id="musalla-list"><% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; %><article class="musalla-card" data-musalla-card data-search="<%= `${m.name} ${m.address}`.toLowerCase() %>"><a class="musalla-card-main" href="/musallas/<%= m.id %>" aria-label="Open <%= m.name %>"><span class="mosque-icon"><% if(m.logo_url){ %><img src="<%= m.logo_url %>" alt=""><% } else { %>⌂<% } %></span></a><div><h3><a href="/musallas/<%= m.id %>"><%= m.name %></a></h3><% if(m.address){ %><p><a class="maps-link" href="geo:0,0?q=<%= encodeURIComponent(m.address) %>"><%= m.address %></a></p><% } else { %><p>Address not set</p><% } %><small><%= m.member_count %> member<%= Number(m.member_count)===1?'':'s' %><% if(jumuahSlotCount){ %> · <%= jumuahSlotCount %> Jumuah slot<%= jumuahSlotCount===1?'':'s' %><% } %></small></div><a class="musalla-card-arrow" href="/musallas/<%= m.id %>" aria-label="Open <%= m.name %>">›</a></article><% }) %><% if(!musallas.length){ %><div class="empty">You do not have an approved Musalla membership yet.</div><% } %><div class="empty" id="no-filter-results" hidden>No Musallas match your search.</div></div></section><% if(requests.length){ %><section class="request-statuses"><div class="section-title"><h2>Membership requests</h2><span id="request-count"><%= requests.length %></span></div><div class="surface"><% requests.forEach(request=>{ %><div class="request-status"><div><b><%= request.name %></b><span class="status-chip <%= request.status %>"><%= request.status %></span></div><% if(request.status==='pending'){ %><form action="/membership-requests/<%= request.id %>/cancel" method="post" data-confirm-title="Cancel membership request?" data-confirm="Your pending request to join <%= request.name %> will be withdrawn." data-confirm-button="Cancel request" data-confirm-style="danger"><input type="hidden" name="return_to" value="/"><button class="chip danger">Cancel request</button></form><% } %></div><% }) %></div></section><% } %><div class="create-panel"><a class="register-musalla-link" href="/register-musalla">＋ Register another Musalla <span>›</span></a></div></main>
-<script src="/dashboard.js"></script><%- include('partials/foot') %>
+<%- include('partials/head',{title:'Home'}) %>
+<%- include('partials/nav') %>
+<main>
+<header class="page-head">
+<p class="eyebrow">al-salamu alaykum</p>
+<h1>
+<%= user.name.split(' ')[0] %>
+</h1>
+<p>Where would you like to serve today?</p>
+</header>
+<section>
+<div class="section-title">
+<h2>Your musallas</h2>
+<span id="musalla-count">
+<%= musallas.length %>
+</span>
+</div>
+<label class="content-filter">
+<span class="sr-only">Filter Musallas</span>
+<input id="musalla-filter" type="search" placeholder="Find a Musalla" autocomplete="off">
+</label>
+<div class="card-list" id="musalla-list">
+<% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; %>
+<article class="musalla-card" data-musalla-card data-search="<%= `${m.name} ${m.address}`.toLowerCase() %>">
+<a class="musalla-card-main" href="/musallas/<%= m.id %>" aria-label="Open <%= m.name %>">
+<span class="mosque-icon">
+<% if(m.logo_url){ %>
+<img src="<%= m.logo_url %>" alt="">
+<% } else { %>⌂<% } %>
+</span>
+</a>
+<div>
+<h3>
+<a href="/musallas/<%= m.id %>">
+<%= m.name %>
+</a>
+</h3>
+<% if(m.address){ %>
+<p>
+<a class="maps-link" href="geo:0,0?q=<%= encodeURIComponent(m.address) %>">
+<%= m.address %>
+</a>
+</p>
+<% } else { %>
+<p>Address not set</p>
+<% } %>
+<small>
+<%= m.member_count %> member<%= Number(m.member_count)===1?'':'s' %>
+ · <%= jumuahSlotCount ? `${jumuahSlotCount} Jumuah slot${jumuahSlotCount===1?'':'s'}` : 'No Jumuah slot' %>
+</small>
+</div>
+<a class="musalla-card-arrow" href="/musallas/<%= m.id %>" aria-label="Open <%= m.name %>">›</a>
+</article>
+<% }) %>
+<% if(!musallas.length){ %>
+<div class="empty">You do not have an approved Musalla membership yet.</div>
+<% } %>
+<div class="empty" id="no-filter-results" hidden>No Musallas match your search.</div>
+</div>
+</section>
+<% if(requests.length){ %>
+<section class="request-statuses">
+<div class="section-title">
+<h2>Membership requests</h2>
+<span id="request-count">
+<%= requests.length %>
+</span>
+</div>
+<div class="surface">
+<% requests.forEach(request=>{ %>
+<div class="request-status">
+<div>
+<b>
+<%= request.name %>
+</b>
+<span class="status-chip <%= request.status %>">
+<%= request.status %>
+</span>
+</div>
+<% if(request.status==='pending'){ %>
+<form action="/membership-requests/<%= request.id %>/cancel" method="post" data-confirm-title="Cancel membership request?" data-confirm="Your pending request to join <%= request.name %> will be withdrawn." data-confirm-button="Cancel request" data-confirm-style="danger">
+<input type="hidden" name="return_to" value="/">
+<button class="chip danger">Cancel request</button>
+</form>
+<% } %>
+</div>
+<% }) %>
+</div>
+</section>
+<% } %>
+<div class="create-panel">
+<a class="register-musalla-link" href="/register-musalla">＋ Register another Musalla <span>›</span>
+</a>
+</div>
+</main>
+<script src="/dashboard.js">
+</script>
+<%- include('partials/foot') %>

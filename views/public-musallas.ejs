@@ -1,8 +1,50 @@
 <%- include('partials/head',{title:'Available Musallas',isPublic:true,canonicalPath:'/musallas',description:'Find an available Musalla community, learn about it, and sign in to request membership.'}) %>
 <main class="public-musallas-page">
   <%- include('partials/public-nav') %>
-  <header class="page-head"><p class="eyebrow">COMMUNITIES</p><h1>Available Musallas</h1><p>Find your local prayer community and request to join.</p></header>
-  <label class="content-filter"><span class="sr-only">Filter Musallas</span><input id="musalla-filter" type="search" placeholder="Find a Musalla" autocomplete="off"></label>
-  <div class="request-musallas" id="musalla-list"><% musallas.forEach(musalla=>{ %><article class="surface request-musalla public-musalla-card" data-musalla-card data-search="<%= `${musalla.name} ${musalla.address}`.toLowerCase() %>"><div class="admin-musalla-info"><a class="mosque-icon" href="/m/<%= musalla.guid %>" aria-label="View <%= musalla.name %>"><% if(musalla.logo_url){ %><img src="<%= musalla.logo_url %>" alt=""><% } else { %>⌂<% } %></a><div><h2><a href="/m/<%= musalla.guid %>"><%= musalla.name %></a></h2><p><%= musalla.address||'Address not set' %></p><% if(musalla.about){ %><small><%= musalla.about.length>120?`${musalla.about.slice(0,117)}…`:musalla.about %></small><% } %></div></div><a class="chip public-join-button" href="/join/musallas/<%= musalla.guid %>">Join</a></article><% }) %><% if(!musallas.length){ %><div class="empty">No Musallas are currently available.</div><% } %><div class="empty" id="no-filter-results" hidden>No Musallas match your search.</div></div>
+  <header class="page-head">
+<p class="eyebrow">COMMUNITIES</p>
+<h1>Available Musallas</h1>
+<p>Find your local prayer community and request to join.</p>
+</header>
+  <label class="content-filter">
+<span class="sr-only">Filter Musallas</span>
+<input id="musalla-filter" type="search" placeholder="Find a Musalla" autocomplete="off">
+</label>
+  <div class="request-musallas" id="musalla-list">
+<% musallas.forEach(musalla=>{ const jumuahSlotCount=[1,2,3].filter(number=>musalla[`jumuah_${number}_enabled`]).length; %>
+<article class="surface request-musalla public-musalla-card" data-musalla-card data-search="<%= `${musalla.name} ${musalla.address}`.toLowerCase() %>">
+<div class="admin-musalla-info">
+<a class="mosque-icon" href="/m/<%= musalla.guid %>" aria-label="View <%= musalla.name %>">
+<% if(musalla.logo_url){ %>
+<img src="<%= musalla.logo_url %>" alt="">
+<% } else { %>⌂<% } %>
+</a>
+<div>
+<h2>
+<a class="musalla-name-link" href="/m/<%= musalla.guid %>">
+<%= musalla.name %>
+</a>
+</h2>
+<% if(musalla.address){ %><p><a class="maps-link" href="geo:0,0?q=<%= encodeURIComponent(musalla.address) %>"><%= musalla.address %></a></p><% } else { %><p>Address not set</p><% } %>
+<small class="musalla-card-meta"><%= musalla.member_count %> member<%= Number(musalla.member_count)===1?'':'s' %> · <%= jumuahSlotCount ? `${jumuahSlotCount} Jumuah slot${jumuahSlotCount===1?'':'s'}` : 'No Jumuah slot' %></small>
+<% if(musalla.about){ %>
+<small>
+<%= musalla.about.length>120?`${musalla.about.slice(0,117)}…`:musalla.about %>
+</small>
+<% } %>
+</div>
+</div>
+<a class="chip public-join-button" href="/join/musallas/<%= musalla.guid %>">Join</a>
+</article>
+<% }) %>
+<% if(!musallas.length){ %>
+<div class="empty">No Musallas are currently available.</div>
+<% } %>
+<div class="empty" id="no-filter-results" hidden>No Musallas match your search.</div>
+</div>
 </main>
-<script src="/dashboard.js"></script><script src="/menu.js"></script><%- include('partials/foot') %>
+<script src="/dashboard.js">
+</script>
+<script src="/menu.js">
+</script>
+<%- include('partials/foot') %>

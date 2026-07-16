@@ -49,6 +49,11 @@ async function initializeDatabase() {
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
       is_test BOOLEAN NOT NULL DEFAULT FALSE,
       timezone VARCHAR(100) NOT NULL DEFAULT 'America/Chicago',
+      fajr_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      zuhr_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      asr_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      maghrib_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+      isha_enabled BOOLEAN NOT NULL DEFAULT TRUE,
       jumuah_1_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       jumuah_2_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       jumuah_3_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -68,6 +73,11 @@ async function initializeDatabase() {
   if (!aboutColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN about TEXT NULL AFTER address');
   const [locationTestColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='is_test'");
   if (!locationTestColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE');
+  const [salahColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name IN ('fajr_enabled','zuhr_enabled','asr_enabled','maghrib_enabled','isha_enabled')");
+  const existingSalahColumns = new Set(salahColumns.map(column => column.COLUMN_NAME));
+  for (const column of ['fajr_enabled','zuhr_enabled','asr_enabled','maghrib_enabled','isha_enabled']) {
+    if (!existingSalahColumns.has(column)) await pool.query(`ALTER TABLE musalla_locations ADD COLUMN ${column} BOOLEAN NOT NULL DEFAULT TRUE`);
+  }
   const [jumuahColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name LIKE 'jumuah_%_enabled'");
   const existingJumuahColumns = new Set(jumuahColumns.map(column => column.COLUMN_NAME));
   for (const column of ['jumuah_1_enabled','jumuah_2_enabled','jumuah_3_enabled']) {
@@ -183,9 +193,16 @@ function scheduleBounds(now = new Date(), timezone = 'America/Chicago') {
   return { firstDate: isoDate(first), lastDate: isoDate(last), today: isoDate(today) };
 }
 
+function enabledPrayersForDate(musalla, date) {
+  const enabledDailyPrayers = DAILY_PRAYERS.filter(prayer => musalla[`${prayer.toLowerCase()}_enabled`]);
+  if (date.getUTCDay() !== 5) return enabledDailyPrayers;
+  const enabledJumuah = [1,2,3].filter(number => musalla[`jumuah_${number}_enabled`]).map(number => `Jumuah ${number}`);
+  return [...enabledDailyPrayers.filter(prayer => prayer !== 'Zuhr'), ...enabledJumuah];
+}
+
 async function syncPrayerSchedules(musallaId) {
   const params = [];
-  let sql = `SELECT id,timezone,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`;
+  let sql = `SELECT id,timezone,fajr_enabled,zuhr_enabled,asr_enabled,maghrib_enabled,isha_enabled,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`;
   if (musallaId) { sql += ' AND id=?'; params.push(Number(musallaId)); }
   const [musallas] = await pool.execute(sql, params);
   const connection = await pool.getConnection();
@@ -200,10 +217,7 @@ async function syncPrayerSchedules(musallaId) {
       while (isoDate(date) <= lastDate) {
         const dateValue = isoDate(date);
         const musalla = musallas.find(item => Number(item.id) === Number(id));
-        const enabledJumuah = [1,2,3].filter(number => musalla[`jumuah_${number}_enabled`]).map(number => `Jumuah ${number}`);
-        const prayers = date.getUTCDay() === 5 && enabledJumuah.length
-          ? ['Fajr', ...enabledJumuah, 'Asr','Maghrib','Isha']
-          : DAILY_PRAYERS;
+        const prayers = enabledPrayersForDate(musalla, date);
         for (const prayer of prayers) {
           values.push([id, dateValue, prayer]);
           desiredKeys.add(`${dateValue}|${prayer}`);
@@ -224,4 +238,4 @@ async function syncPrayerSchedules(musallaId) {
   }
 }
 
-module.exports = { pool, initializeDatabase, scheduleBounds, syncPrayerSchedules, TEST_MODE };
+module.exports = { pool, initializeDatabase, scheduleBounds, enabledPrayersForDate, syncPrayerSchedules, TEST_MODE };

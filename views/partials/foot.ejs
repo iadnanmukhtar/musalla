@@ -6,7 +6,7 @@
       <a class="<%= path==='/profile'?'active':'' %>" href="/profile"><span>♙</span>Profile</a>
     <% } else { %>
       <a class="<%= path==='/'?'active':'' %>" href="/"><span>⌂</span>Home</a>
-      <a class="<%= path==='/membership-requests'?'active':'' %>" href="/membership-requests"><span>＋</span>Join</a>
+      <% if(musallaNav){ %><a class="<%= path===`/musallas/${musallaNav.id}`?'active':'' %>" href="/musallas/<%= musallaNav.id %>"><span aria-hidden="true">▦</span>Schedule</a><% } else { %><a class="<%= path==='/membership-requests'?'active':'' %>" href="/membership-requests"><span>＋</span>Join</a><% } %>
       <% if(musallaNav&&canManageMembers){ %><a class="<%= path===`/musallas/${musallaNav.id}/members`?'active':'' %>" href="/musallas/<%= musallaNav.id %>/members"><span class="nav-icon" aria-hidden="true">👥<% if(pendingApprovalCount){ %><b class="nav-badge"><%= pendingApprovalCount %></b><% } %></span>Members<% if(pendingApprovalCount){ %><span class="sr-only"><%= pendingApprovalCount %> pending approval<%= pendingApprovalCount===1?'':'s' %></span><% } %></a><% } %>
       <% if(user.is_superuser){ %><form action="/view-mode" method="post"><input type="hidden" name="mode" value="super"><button><span>⚙</span>Super Admin</button></form><% } %>
       <a class="<%= path==='/profile'?'active':'' %>" href="/profile"><span>♙</span>Profile</a>
