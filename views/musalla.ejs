@@ -27,5 +27,5 @@
   <% if(isAdmin){ %><form class="schedule-reminder" action="/musallas/<%= musalla.id %>/remind-imams" method="post" data-confirm-title="Remind active Imams?" data-confirm="Send the seven-day schedule to all active Imam members and ask them to fill open prayer slots." data-confirm-button="Send reminder"><input type="hidden" name="date" value="<%= date %>"><button class="button" type="submit"><span aria-hidden="true">◉</span> Remind Imams</button></form><% } %>
   <dialog class="opt-in-dialog" id="opt-in-dialog"><form method="dialog" class="dialog-card"><button class="dialog-close" value="cancel" aria-label="Close">×</button><p class="eyebrow">OPT IN</p><h2 id="opt-in-title">Lead salah</h2><p>How many consecutive days would you like to lead this salah?</p><label>Number of days<input id="opt-in-days" type="number" min="1" value="1" required inputmode="numeric"></label><div class="dialog-actions"><button class="button secondary" value="cancel">Cancel</button><button class="button" id="confirm-opt-in" value="default">Confirm</button></div></form></dialog>
 </main>
-<script src="/musalla.js"></script>
+<script src="/musalla.js?v=4"></script>
 <%- include('partials/foot') %>
