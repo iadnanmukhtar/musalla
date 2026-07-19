@@ -1,0 +1,31 @@
+.install-app-prompt {
+  position: fixed;
+  z-index: 20;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  width: min(calc(100% - 24px), 576px);
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 42px 14px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 16px 45px rgba(18, 60, 53, .22);
+}
+
+.install-app-prompt[hidden] { display: none; }
+.install-prompt-visible .app-shell { padding-bottom: calc(280px + env(safe-area-inset-bottom)); }
+.install-app-prompt img { width: 46px; height: 46px; border-radius: 12px; }
+.install-app-prompt strong { display: block; color: var(--green); font-size: 15px; }
+.install-app-prompt p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+.install-app-prompt .button { width: auto; padding: 10px 14px; }
+.install-app-close { position: absolute; right: 9px; top: 7px; border: 0; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
+
+@media (max-width: 430px) {
+  .install-app-prompt { grid-template-columns: 42px 1fr; }
+  .install-app-prompt img { width: 42px; height: 42px; }
+  .install-app-prompt .button { grid-column: 1 / -1; width: 100%; }
+}

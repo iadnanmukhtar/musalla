@@ -15,6 +15,12 @@
 <% } %>
 <dialog class="confirmation-dialog" id="confirmation-dialog"><div class="dialog-card"><button class="dialog-close" id="confirmation-close" type="button" aria-label="Close">×</button><p class="eyebrow">PLEASE CONFIRM</p><h2 id="confirmation-title">Confirm membership action</h2><p id="confirmation-message"></p><div class="dialog-actions"><button class="button secondary" id="confirmation-cancel" type="button">Cancel</button><button class="button danger" id="confirmation-continue" type="button">Confirm</button></div></div></dialog>
 <% if(registrationConfirmation){ %><dialog class="confirmation-dialog registration-success-dialog" id="registration-success-dialog"><div class="dialog-card"><button class="dialog-close" id="registration-success-close" type="button" aria-label="Close">×</button><p class="eyebrow">REGISTRATION COMPLETE</p><h2><%= registrationConfirmation.name %> was registered</h2><p><%= registrationConfirmation.message %></p><button class="button" id="registration-success-continue" type="button">Continue</button></div></dialog><% } %>
+<aside class="install-app-prompt" id="install-app-prompt" aria-labelledby="install-app-title" hidden>
+  <button class="install-app-close" id="install-app-close" type="button" aria-label="Dismiss app installation prompt">×</button>
+  <img src="/icon-192.png" alt="">
+  <div><strong id="install-app-title">Install Musalla</strong><p id="install-app-message">Install the app for quick access from this device.</p></div>
+  <button class="button" id="install-app-button" type="button">Install</button>
+</aside>
 </div>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-WN0F9NNBRE"></script>
@@ -24,4 +30,4 @@
   gtag('js', new Date());
   gtag('config', 'G-WN0F9NNBRE');
 </script>
-<script src="/confirmation.js?v=4"></script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js?v=4');</script></body></html>
+<script src="/confirmation.js?v=4"></script><script src="/app-install.js?v=9"></script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js?v=11');</script></body></html>
