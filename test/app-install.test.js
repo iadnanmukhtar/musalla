@@ -45,7 +45,7 @@ test('shared footer offers public and signed-in browser users the installable ap
   assert.equal(manifest.lang, 'en');
   assert.equal(manifest.dir, 'ltr');
   assert.equal(manifest.display, 'standalone');
-  assert.deepEqual(manifest.display_override, ['standalone', 'minimal-ui']);
+  assert.deepEqual(manifest.display_override, ['standalone', 'minimal-ui', 'window-controls-overlay']);
   assert.equal(manifest.orientation, 'any');
   assert.equal(manifest.background_color, '#f7fbfd');
   assert.equal(manifest.theme_color, '#08a1d4');
