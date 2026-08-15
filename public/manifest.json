@@ -4,12 +4,35 @@
   "short_name": "Musalla",
   "description": "Coordinate weekly imam, Salah, and khutbah coverage with your Musalla or Masjid. See open prayer slots, volunteer, manage members, and send focused reminders from one shared app.",
   "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#f7fbfd",
   "theme_color": "#08a1d4",
   "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "My Musallas",
+      "short_name": "My Musallas",
+      "description": "Open your communities and weekly prayer rosters.",
+      "url": "/",
+      "icons": [
+        {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"}
+      ]
+    },
+    {
+      "name": "Find a Musalla",
+      "short_name": "Find Musalla",
+      "description": "Browse Musalla communities and request to join one.",
+      "url": "/musallas",
+      "icons": [
+        {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"}
+      ]
+    }
+  ],
   "screenshots": [
     {
       "src": "/install-screenshot-narrow.png",
@@ -28,7 +51,10 @@
   ],
   "icons": [
     {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+    {"src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
     {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
-  ]
+  ],
+  "prefer_related_applications": false
 }

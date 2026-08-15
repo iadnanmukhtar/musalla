@@ -42,8 +42,29 @@ test('shared footer offers public and signed-in browser users the installable ap
   assert.equal(manifest.id, '/');
   assert.equal(manifest.start_url, '/');
   assert.equal(manifest.scope, '/');
+  assert.equal(manifest.lang, 'en');
+  assert.equal(manifest.dir, 'ltr');
+  assert.equal(manifest.display, 'standalone');
+  assert.deepEqual(manifest.display_override, ['standalone', 'minimal-ui']);
+  assert.equal(manifest.orientation, 'any');
+  assert.equal(manifest.background_color, '#f7fbfd');
+  assert.equal(manifest.theme_color, '#08a1d4');
   assert.ok(manifest.description.length > 80);
   assert.deepEqual(manifest.categories, ['productivity', 'utilities']);
+  assert.equal(manifest.prefer_related_applications, false);
+  assert.deepEqual(manifest.shortcuts.map(shortcut => shortcut.url), ['/', '/musallas']);
+  manifest.shortcuts.forEach(shortcut => {
+    assert.ok(shortcut.name);
+    assert.ok(shortcut.short_name);
+    assert.ok(shortcut.description);
+    assert.ok(shortcut.url.startsWith(manifest.scope));
+  });
+  const iconPurposes = manifest.icons.map(icon => icon.purpose);
+  assert.ok(iconPurposes.includes('any'));
+  assert.ok(iconPurposes.includes('maskable'));
+  manifest.icons.filter(icon => icon.type === 'image/png').forEach(icon => {
+    assert.ok(fs.existsSync(path.join(root, 'public', icon.src)));
+  });
   assert.deepEqual(manifest.screenshots.map(screenshot => screenshot.form_factor).sort(), ['narrow', 'wide']);
   manifest.screenshots.forEach(screenshot => {
     assert.equal(screenshot.type, 'image/png');
