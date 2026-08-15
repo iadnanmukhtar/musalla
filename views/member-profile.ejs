@@ -1,24 +1,30 @@
 <%- include('partials/head',{title:`${member.name} profile`}) %><%- include('partials/nav') %>
 <main>
   <a class="back" href="<%= backUrl %>">‹ Back to members</a>
-  <header class="member-profile-head"><span class="profile-avatar"><% if(member.avatar_url){ %><img src="<%= member.avatar_url %>" alt=""><% } else { %><%= member.name[0] %><% } %></span><div><p class="eyebrow"><%= isSuperAdmin?'SUPER ADMIN':'MUSALLA ADMIN' %></p><h1><%= member.name %></h1><p><%= member.email %></p></div></header>
+  <header class="member-profile-head"><span class="profile-avatar"><% if(member.avatar_url){ %><img src="<%= member.avatar_url %>" alt=""><% } else { %><%= member.name[0] %><% } %></span><div><p class="eyebrow"><%= isSuperAdmin?'SUPER ADMIN':'MUSALLA ADMIN' %></p><h1><%= member.name %></h1><p><%= member.email || 'No email address' %></p></div></header>
   <section class="surface member-details"><h2>Profile</h2><dl><div><dt>Status</dt><dd><%= member.status==='pending'?'Pending approval':member.status %></dd></div><div><dt>Phone</dt><dd><%= member.phone||'Not provided' %></dd></div><div><dt>Bio</dt><dd><%= member.bio||'Not provided' %></dd></div><div><dt>Musalla</dt><dd><%= member.musalla_name %></dd></div></dl></section>
-  <% if(canEditProfile){ %>
-  <form action="<%= profileFormAction %>" method="post" class="surface stack">
-    <div><h2>Edit profile</h2><p><%= isSuperAdmin?'Update this member’s profile details.':'Update this Imam or administrator’s name.' %></p></div>
+  <% if(canEditProfile || member.status!=='pending'){ %>
+  <form action="<%= roleFormAction %>" method="post" class="surface stack<%= member.status!=='pending'?' role-form':'' %>"<% if(member.status!=='pending'){ %> data-confirm-title="Save member changes?" data-confirm="<%= canEditProfile?'The profile details and selected roles will be saved together.':'The selected roles will replace this member’s current roles.' %>" data-confirm-button="Save changes"<% } %>>
+    <% if(canEditProfile){ %>
+    <div><h2>Edit profile</h2><p><%= isSuperAdmin?'Update this member’s profile details.':'Update this Imam or administrator’s name and email address.' %></p></div>
     <label>Full name<input name="name" required maxlength="150" value="<%= member.name %>"></label>
+    <label>Email address <span class="optional-label">Optional</span><input name="email" type="email" autocomplete="email" maxlength="320" value="<%= member.email || '' %>"><small>An unregistered member needs an email address before their first sign-in.</small></label>
     <% if(isSuperAdmin){ %>
       <label>Phone number<input name="phone" type="tel" maxlength="30" value="<%= member.phone || '' %>"></label>
       <label>Brief bio<textarea name="bio" maxlength="500" rows="5"><%= member.bio || '' %></textarea></label>
     <% } %>
-    <small>Email and profile photo remain managed by the member’s Google account.</small>
-    <button class="button">Save profile</button>
+    <small>Profile photos remain managed by the member’s Google account.</small>
+    <% } %>
+    <% if(member.status!=='pending'){ %>
+    <fieldset><legend>Roles</legend><p>Select one or more roles for this member at <%= member.musalla_name %>.</p><label class="role-option"><input type="checkbox" name="roles" value="imam" <%= member.role.split(',').includes('imam')?'checked':'' %>><span><b>Imam</b><small>Can volunteer to lead prayers.</small></span></label><label class="role-option"><input type="checkbox" name="roles" value="admin" <%= member.role.split(',').includes('admin')?'checked':'' %>><span><b>Administrator</b><small>Can manage the Musalla and its members.</small></span></label></fieldset>
+    <% } %>
+    <button class="button">Save changes</button>
   </form>
   <% } %>
-  <% if(member.status!=='pending'){ %>
-  <form action="<%= roleFormAction %>" method="post" class="surface stack role-form" data-confirm-title="Update member roles?" data-confirm="The selected roles will replace this member's current roles." data-confirm-button="Update roles">
-    <fieldset><legend>Roles</legend><p>Select one or more roles for this member at <%= member.musalla_name %>.</p><label class="role-option"><input type="checkbox" name="roles" value="imam" <%= member.role.split(',').includes('imam')?'checked':'' %>><span><b>Imam</b><small>Can volunteer to lead prayers.</small></span></label><label class="role-option"><input type="checkbox" name="roles" value="admin" <%= member.role.split(',').includes('admin')?'checked':'' %>><span><b>Administrator</b><small>Can manage the Musalla and its members.</small></span></label></fieldset>
-    <button class="button">Save roles</button>
+  <% if(typeof canRemoveMember!=='undefined' && canRemoveMember){ %>
+  <form action="<%= removeAction %>" method="post" class="surface stack" data-confirm-title="Remove <%= member.name %>?" data-confirm="Their membership will be removed and future prayer assignments will be cleared." data-confirm-button="Remove member" data-confirm-style="danger">
+    <div><h2>Remove member</h2><p>Remove this person from <%= member.musalla_name %>.</p></div>
+    <button class="button danger">Remove member</button>
   </form>
   <% } %>
 </main>

@@ -6,7 +6,7 @@
 
   openButton.addEventListener('click', () => {
     dialog.showModal();
-    dialog.querySelector('input[name="email"]')?.focus();
+    dialog.querySelector('input[name="name"]')?.focus();
   });
   closeButton.addEventListener('click', () => dialog.close());
   dialog.addEventListener('click', event => {

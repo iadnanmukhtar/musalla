@@ -188,12 +188,14 @@ function roleNames(roles) {
   return roles.map(role => role === 'admin' ? 'Administrator' : 'Imam');
 }
 
-async function addMemberByEmail(musalla, email, roles) {
+async function addMember(musalla, name, email, roles) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    const [userResult] = await connection.execute(`INSERT INTO musalla_users (email,name,is_test,registration_completed) VALUES (?,?,?,TRUE)
-      ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`, [email,emailDisplayName(email),Boolean(musalla.is_test)]);
+    const [userResult] = email
+      ? await connection.execute(`INSERT INTO musalla_users (email,name,is_test,registration_completed) VALUES (?,?,?,TRUE)
+          ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`, [email,name,Boolean(musalla.is_test)])
+      : await connection.execute('INSERT INTO musalla_users (email,name,is_test,registration_completed) VALUES (NULL,?,?,TRUE)', [name,Boolean(musalla.is_test)]);
     const [users] = await connection.execute('SELECT * FROM musalla_users WHERE id=? FOR UPDATE', [userResult.insertId]);
     const user = users[0];
     if (!user || Boolean(user.is_test)!==Boolean(musalla.is_test)) {
@@ -263,9 +265,15 @@ async function sendAddedMembershipEmail(musalla, user, roles, addedBy) {
 }
 
 async function handleAddMemberRequest(req, res, musalla, redirectUrl) {
-  const email = normalizedEmail(req.body.email);
+  const name = cleanText(req.body.name).replace(/\s+/g, ' ').slice(0, 150);
+  const rawEmail = cleanText(req.body.email);
+  const email = rawEmail ? normalizedEmail(rawEmail) : null;
   const roles = selectedRoles(req.body);
-  if (!email) {
+  if (!name) {
+    setNotice(req, 'Enter the member’s full name', 'error');
+    return res.redirect(redirectUrl);
+  }
+  if (rawEmail && !email) {
     setNotice(req, 'Enter a valid email address', 'error');
     return res.redirect(redirectUrl);
   }
@@ -273,17 +281,21 @@ async function handleAddMemberRequest(req, res, musalla, redirectUrl) {
     setNotice(req, 'Select the Imam role, Administrator role, or both', 'error');
     return res.redirect(redirectUrl);
   }
-  const result = await addMemberByEmail(musalla, email, roles);
+  const result = await addMember(musalla, name, email, roles);
   if (result.status === 'already_member') {
-    setNotice(req, `${email} is already a member. Open their profile to change roles.`, 'error');
+    setNotice(req, `${result.user.name} is already a member. Open their profile to change roles.`, 'error');
     return res.redirect(redirectUrl);
   }
   if (result.status === 'disabled') {
-    setNotice(req, `${email} belongs to a disabled account`, 'error');
+    setNotice(req, `${result.user.name} belongs to a disabled account`, 'error');
     return res.redirect(redirectUrl);
   }
   if (result.status === 'environment_mismatch') {
     setNotice(req, 'That account is not available in this environment', 'error');
+    return res.redirect(redirectUrl);
+  }
+  if (!email) {
+    setNotice(req, `${result.user.name} was added without an email address`);
     return res.redirect(redirectUrl);
   }
   const delivered = await sendAddedMembershipEmail(musalla, result.user, roles, req.user.name);
@@ -322,16 +334,24 @@ function isSuperAdminMode(req) {
   return Boolean(req.user?.is_superuser && req.session.viewMode !== 'member');
 }
 
-async function updateMemberRoles(musallaId, userId, roles) {
+async function updateMemberProfileAndRoles(musallaId, userId, { roles = null, profile = null, includeExtendedProfile = false, requireElevatedProfile = false, allowedStatuses = ['active','disabled'] }) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     const [locations] = await connection.execute('SELECT timezone FROM musalla_locations WHERE id=?', [musallaId]);
     if (!locations[0]) { await connection.rollback(); return false; }
-    const [memberships] = await connection.execute("SELECT status FROM musalla_memberships WHERE musalla_id=? AND user_id=? FOR UPDATE", [musallaId,userId]);
-    if (!memberships[0] || !['active','disabled'].includes(memberships[0].status)) { await connection.rollback(); return false; }
-    await connection.execute('UPDATE musalla_memberships SET role=? WHERE musalla_id=? AND user_id=?', [roles.join(','),musallaId,userId]);
-    if (!roles.includes('imam')) {
+    const [memberships] = await connection.execute("SELECT status,role FROM musalla_memberships WHERE musalla_id=? AND user_id=? FOR UPDATE", [musallaId,userId]);
+    if (!memberships[0] || !allowedStatuses.includes(memberships[0].status)) { await connection.rollback(); return false; }
+    if (profile && requireElevatedProfile && !hasRole(memberships[0],'imam') && !hasRole(memberships[0],'admin')) { await connection.rollback(); return false; }
+    if (profile) {
+      if (includeExtendedProfile) {
+        await connection.execute('UPDATE musalla_users SET name=?,email=?,phone=?,bio=? WHERE id=?', [profile.name,profile.email,profile.phone,profile.bio,userId]);
+      } else {
+        await connection.execute('UPDATE musalla_users SET name=?,email=? WHERE id=?', [profile.name,profile.email,userId]);
+      }
+    }
+    if (roles) await connection.execute('UPDATE musalla_memberships SET role=? WHERE musalla_id=? AND user_id=?', [roles.join(','),musallaId,userId]);
+    if (roles && !roles.includes('imam')) {
       const { today } = scheduleBounds(new Date(), locations[0].timezone);
       await connection.execute('UPDATE musalla_prayer_slots SET imam_user_id=NULL WHERE musalla_id=? AND imam_user_id=? AND prayer_date>=?', [musallaId,userId,today]);
       await connection.execute('DELETE FROM musalla_prayer_recurrences WHERE musalla_id=? AND imam_user_id=?', [musallaId,userId]);
@@ -576,25 +596,47 @@ app.get('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requir
   if (!rows[0]) return res.sendStatus(404);
   res.type('html').set('Content-Disposition','inline').render('member-profile', {
     member: rows[0], isSuperAdmin: true, canEditProfile: true,
-    profileFormAction: `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile/details`,
     roleFormAction: `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`,
+    removeAction: `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/remove`,
+    canRemoveMember: rows[0].status!=='pending' && Number(req.params.userId)!==Number(req.user.id),
     backUrl: `/super-admin/musallas/${req.params.id}`
   });
 });
-app.post('/super-admin/musallas/:id/members/:userId/profile/details', requireAuth, requireSuperAdmin, async (req, res) => {
-  const [members] = await pool.execute(`SELECT u.id FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('pending','active','disabled') AND ${visibleMusalla('m')}`, [req.params.id,req.params.userId]);
+app.post('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requireSuperAdmin, async (req, res) => {
+  const redirectUrl = `/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`;
+  const [members] = await pool.execute(`SELECT u.id,ms.status FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id JOIN musalla_locations m ON m.id=ms.musalla_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('pending','active','disabled') AND ${visibleMusalla('m')}`, [req.params.id,req.params.userId]);
   if (!members[0]) return res.sendStatus(404);
   const name = cleanText(req.body.name).slice(0, 150);
-  if (!name) { setNotice(req, 'Member name is required', 'error'); return res.redirect(`/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`); }
-  await pool.execute('UPDATE musalla_users SET name=?,phone=?,bio=? WHERE id=?', [name,cleanText(req.body.phone).slice(0,30),cleanText(req.body.bio).slice(0,500),members[0].id]);
-  setNotice(req, 'Member profile updated');
-  res.redirect(`/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`);
+  const rawEmail = cleanText(req.body.email);
+  const email = rawEmail ? normalizedEmail(rawEmail) : null;
+  const roles = members[0].status==='pending' ? null : selectedRoles(req.body);
+  if (!name) { setNotice(req, 'Member name is required', 'error'); return res.redirect(redirectUrl); }
+  if (rawEmail && !email) { setNotice(req, 'Enter a valid email address or leave it blank', 'error'); return res.redirect(redirectUrl); }
+  if (roles && !roles.length) { setNotice(req, 'Select at least one role', 'error'); return res.redirect(redirectUrl); }
+  try {
+    const updated = await updateMemberProfileAndRoles(req.params.id, req.params.userId, {
+      roles,
+      profile: { name, email, phone: cleanText(req.body.phone).slice(0,30), bio: cleanText(req.body.bio).slice(0,500) },
+      includeExtendedProfile: true,
+      allowedStatuses: [members[0].status]
+    });
+    if (!updated) return res.sendStatus(404);
+  } catch (error) {
+    if (error.code !== 'ER_DUP_ENTRY') throw error;
+    setNotice(req, 'That email address already belongs to another member', 'error');
+    return res.redirect(redirectUrl);
+  }
+  setNotice(req, roles ? 'Member profile and roles updated' : 'Member profile updated');
+  res.redirect(redirectUrl);
 });
-app.post('/super-admin/musallas/:id/members/:userId/profile', requireAuth, requireSuperAdmin, async (req, res) => {
-  const roles = selectedRoles(req.body);
-  if (!roles.length) { setNotice(req, 'Select at least one role', 'error'); return res.redirect(`/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`); }
-  await updateMemberRoles(req.params.id, req.params.userId, roles);
-  setNotice(req, 'Member roles updated'); res.redirect(`/super-admin/musallas/${req.params.id}/members/${req.params.userId}/profile`);
+app.post('/super-admin/musallas/:id/members/:userId/remove', requireAuth, requireSuperAdmin, async (req, res) => {
+  if (Number(req.params.userId)===Number(req.user.id)) { setNotice(req, 'You cannot remove yourself', 'error'); return res.redirect(`/super-admin/musallas/${req.params.id}`); }
+  const [locations] = await pool.execute(`SELECT id FROM musalla_locations m WHERE id=? AND ${visibleMusalla('m')}`, [req.params.id]);
+  if (!locations[0]) return res.sendStatus(404);
+  const removed = await removeMembership(req.params.id,req.params.userId);
+  if (!removed) return res.sendStatus(404);
+  setNotice(req, 'Member removed from the Musalla and future prayer assignments cleared');
+  res.redirect(`/super-admin/musallas/${req.params.id}`);
 });
 app.post('/super-admin/musallas/:id/notifications', requireAuth, requireSuperAdmin, async (req, res) => {
   const notificationsEnabled = req.body.notifications_enabled === '1';
@@ -952,25 +994,40 @@ app.get('/musallas/:guid/members/:userId/profile', requireAuth, musallaAccess, r
   const canEditProfile = rows[0].status!=='pending' && (hasRole(rows[0],'imam') || hasRole(rows[0],'admin'));
   res.type('html').set('Content-Disposition','inline').render('member-profile', {
     member: rows[0], isSuperAdmin: false, canEditProfile,
-    profileFormAction: `/musallas/${req.musallaGuid}/members/${req.params.userId}/profile/details`,
     roleFormAction: `/musallas/${req.musallaGuid}/members/${req.params.userId}/profile`,
+    removeAction: `/musallas/${req.musallaGuid}/members/${req.params.userId}/remove`,
+    canRemoveMember: rows[0].status!=='pending' && Number(req.params.userId)!==Number(req.user.id),
     backUrl: `/musallas/${req.musallaGuid}/members`
   });
 });
-app.post('/musallas/:guid/members/:userId/profile/details', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
-  const [members] = await pool.execute("SELECT u.id FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('active','disabled') AND (FIND_IN_SET('imam',ms.role)>0 OR FIND_IN_SET('admin',ms.role)>0)", [req.params.id,req.params.userId]);
-  if (!members[0]) return res.sendStatus(403);
-  const name = cleanText(req.body.name).slice(0, 150);
-  if (!name) { setNotice(req, 'Member name is required', 'error'); return res.redirect(`/musallas/${req.musallaGuid}/members/${req.params.userId}/profile`); }
-  await pool.execute('UPDATE musalla_users SET name=? WHERE id=?', [name,members[0].id]);
-  setNotice(req, 'Member name updated');
-  res.redirect(`/musallas/${req.musallaGuid}/members/${req.params.userId}/profile`);
-});
 app.post('/musallas/:guid/members/:userId/profile', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
+  const redirectUrl = `/musallas/${req.musallaGuid}/members/${req.params.userId}/profile`;
+  const [members] = await pool.execute("SELECT u.id,ms.role,ms.status FROM musalla_memberships ms JOIN musalla_users u ON u.id=ms.user_id WHERE ms.musalla_id=? AND ms.user_id=? AND ms.status IN ('active','disabled')", [req.params.id,req.params.userId]);
+  if (!members[0]) return res.sendStatus(404);
   const roles = selectedRoles(req.body);
-  if (!roles.length) { setNotice(req, 'Select at least one role', 'error'); return res.redirect(`/musallas/${req.params.id}/members/${req.params.userId}/profile`); }
-  await updateMemberRoles(req.params.id, req.params.userId, roles);
-  setNotice(req, 'Member roles updated'); res.redirect(`/musallas/${req.params.id}/members/${req.params.userId}/profile`);
+  if (!roles.length) { setNotice(req, 'Select at least one role', 'error'); return res.redirect(redirectUrl); }
+  const canEditProfile = hasRole(members[0],'imam') || hasRole(members[0],'admin');
+  let profile = null;
+  if (canEditProfile) {
+    const name = cleanText(req.body.name).slice(0, 150);
+    const rawEmail = cleanText(req.body.email);
+    const email = rawEmail ? normalizedEmail(rawEmail) : null;
+    if (!name) { setNotice(req, 'Member name is required', 'error'); return res.redirect(redirectUrl); }
+    if (rawEmail && !email) { setNotice(req, 'Enter a valid email address or leave it blank', 'error'); return res.redirect(redirectUrl); }
+    profile = { name, email };
+  }
+  try {
+    const updated = await updateMemberProfileAndRoles(req.params.id, req.params.userId, {
+      roles, profile, requireElevatedProfile: true, allowedStatuses: [members[0].status]
+    });
+    if (!updated) return res.sendStatus(404);
+  } catch (error) {
+    if (error.code !== 'ER_DUP_ENTRY') throw error;
+    setNotice(req, 'That email address already belongs to another member', 'error');
+    return res.redirect(redirectUrl);
+  }
+  setNotice(req, canEditProfile ? 'Member profile and roles updated' : 'Member roles updated');
+  res.redirect(redirectUrl);
 });
 app.post('/musallas/:guid/notifications', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   const notificationsEnabled = req.body.notifications_enabled === '1';
@@ -1244,25 +1301,9 @@ app.post('/musallas/:guid/membership-requests/:userId/deny', requireAuth, musall
 });
 app.post('/musallas/:guid/members/:userId/remove', requireAuth, musallaAccess, requireAdmin, async (req, res) => {
   if (Number(req.params.userId)===Number(req.user.id)) { setNotice(req, 'You cannot remove yourself', 'error'); return res.redirect(`/musallas/${req.params.id}/members`); }
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [memberships] = await connection.execute('SELECT role FROM musalla_memberships WHERE musalla_id=? AND user_id=? FOR UPDATE', [req.params.id,req.params.userId]);
-    const target = memberships[0];
-    if (!target) { await connection.rollback(); return res.sendStatus(404); }
-    if (!hasRole(target,'imam') || hasRole(target,'admin')) {
-      await connection.rollback();
-      setNotice(req, 'Administrators cannot be removed with the imam removal action', 'error');
-      return res.redirect(`/musallas/${req.params.id}/members`);
-    }
-    const [locations] = await connection.execute('SELECT timezone FROM musalla_locations WHERE id=?', [req.params.id]);
-    const { today } = scheduleBounds(new Date(), locations[0].timezone);
-    await connection.execute('UPDATE musalla_prayer_slots SET imam_user_id=NULL WHERE musalla_id=? AND imam_user_id=? AND prayer_date>=?', [req.params.id,req.params.userId,today]);
-    await connection.execute('DELETE FROM musalla_prayer_recurrences WHERE musalla_id=? AND imam_user_id=?', [req.params.id,req.params.userId]);
-    await connection.execute('DELETE FROM musalla_memberships WHERE musalla_id=? AND user_id=?', [req.params.id,req.params.userId]);
-    await connection.commit();
-  } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
-  setNotice(req, 'Imam removed from the Musalla and future prayers unslotted');
+  const removed = await removeMembership(req.params.id,req.params.userId);
+  if (!removed) return res.sendStatus(404);
+  setNotice(req, 'Member removed from the Musalla and future prayer assignments cleared');
   res.redirect(`/musallas/${req.params.id}/members`);
 });
 

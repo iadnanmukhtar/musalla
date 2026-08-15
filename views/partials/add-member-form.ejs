@@ -5,11 +5,12 @@
   <div class="dialog-card">
     <button class="dialog-close" type="button" data-add-member-close aria-label="Close add member dialog">×</button>
     <div>
-      <h2>Add member by email</h2>
-      <p>Add an Imam, an Administrator, or both. Their membership starts immediately, and they will receive an email with an option to reject it.</p>
+      <h2>Add member</h2>
+      <p>Add an Imam, an Administrator, or both. Their membership starts immediately. Email is optional and can be added to their profile later.</p>
     </div>
     <form action="<%= addMemberAction %>" method="post" class="stack">
-      <label>Email address<input name="email" type="email" autocomplete="email" maxlength="320" required placeholder="member@example.com"></label>
+      <label>Full name<input name="name" autocomplete="name" maxlength="150" required placeholder="Member’s full name"></label>
+      <label>Email address <span class="optional-label">Optional</span><input name="email" type="email" autocomplete="email" maxlength="320" placeholder="member@example.com"><small>If provided, the member will receive an email with an option to reject the membership.</small></label>
       <fieldset class="profile-fieldset">
         <legend>Roles</legend>
         <div class="role-options">

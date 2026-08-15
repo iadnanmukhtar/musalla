@@ -18,7 +18,7 @@ async function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS musalla_users (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
       google_id VARCHAR(255) UNIQUE,
-      email VARCHAR(320) NOT NULL UNIQUE,
+      email VARCHAR(320) NULL UNIQUE,
       name VARCHAR(150) NOT NULL,
       phone VARCHAR(30) NOT NULL DEFAULT '',
       bio VARCHAR(500) NOT NULL DEFAULT '',
@@ -40,6 +40,8 @@ async function initializeDatabase() {
     await pool.query('ALTER TABLE musalla_users ADD COLUMN registration_completed BOOLEAN NOT NULL DEFAULT FALSE');
     await pool.query('UPDATE musalla_users SET registration_completed=TRUE');
   }
+  const [emailDefinitions] = await pool.query("SELECT IS_NULLABLE FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_users' AND column_name='email'");
+  if (emailDefinitions[0]?.IS_NULLABLE === 'NO') await pool.query('ALTER TABLE musalla_users MODIFY email VARCHAR(320) NULL');
   await pool.query(`
     CREATE TABLE IF NOT EXISTS musalla_locations (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

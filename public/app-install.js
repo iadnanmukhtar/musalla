@@ -13,10 +13,10 @@
   const isIosSafari = isIos && /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent);
   const isAndroid = /Android/i.test(userAgent);
   const isMacSafari = !isIos && /Macintosh/i.test(userAgent) && /Safari/i.test(userAgent) && !/Chrome|Chromium|Edg/i.test(userAgent);
-  const dismissedForSession = window.sessionStorage.getItem('musalla-install-dismissed') === '1';
+  const permanentlyDismissed = window.localStorage.getItem('musalla-install-dismissed') === '1';
   let deferredPrompt = null;
 
-  if (isStandalone || dismissedForSession) return;
+  if (isStandalone || permanentlyDismissed) return;
 
   const track = (eventName, details = {}) => {
     if (typeof window.gtag === 'function') window.gtag('event', eventName, details);
@@ -30,7 +30,7 @@
 
   const dismiss = () => {
     setPromptVisible(false);
-    window.sessionStorage.setItem('musalla-install-dismissed', '1');
+    window.localStorage.setItem('musalla-install-dismissed', '1');
     track('pwa_install_prompt_dismissed');
   };
 
@@ -117,7 +117,7 @@
       const choice = await installEvent.userChoice;
       track('pwa_install_choice', { outcome: choice.outcome });
       setPromptVisible(false);
-      if (choice.outcome !== 'accepted') window.sessionStorage.setItem('musalla-install-dismissed', '1');
+      if (choice.outcome !== 'accepted') window.localStorage.setItem('musalla-install-dismissed', '1');
     } catch (_error) {
       showFallback();
     } finally {

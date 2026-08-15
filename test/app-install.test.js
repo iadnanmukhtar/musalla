@@ -22,7 +22,7 @@ test('shared footer offers public and signed-in browser users the installable ap
   assert.match(publicHtml, /id="install-app-prompt"/);
   const styles = fs.readFileSync(path.join(root, 'public', 'app-install.css'), 'utf8');
 
-  assert.match(footer, /app-install\.js\?v=10/);
+  assert.match(footer, /app-install\.js\?v=11/);
   assert.match(script, /beforeinstallprompt/);
   assert.match(script, /display-mode: standalone/);
   assert.match(script, /Add to Home Screen/);
@@ -31,14 +31,14 @@ test('shared footer offers public and signed-in browser users the installable ap
   assert.match(script, /installEvent\.userChoice/);
   assert.match(script, /appinstalled/);
   assert.match(script, /pwa_install_choice/);
-  assert.match(script, /sessionStorage/);
-  assert.doesNotMatch(script, /localStorage/);
+  assert.match(script, /localStorage/);
+  assert.doesNotMatch(script, /sessionStorage/);
   assert.doesNotMatch(script, /max-width: 768px/);
   assert.doesNotMatch(styles, /min-width: 769px/);
   assert.match(script, /install-prompt-visible/);
   assert.match(styles, /install-prompt-visible \.app-shell/);
   assert.match(styles, /@media \(display-mode: standalone\)/);
-  assert.match(serviceWorker, /app-install\.js\?v=10/);
+  assert.match(serviceWorker, /app-install\.js\?v=11/);
   assert.equal(manifest.id, '/');
   assert.equal(manifest.start_url, '/');
   assert.equal(manifest.scope, '/');
@@ -90,7 +90,7 @@ test('native install events replace fallback instructions and record the browser
     window: {
       navigator: { userAgent: 'Mozilla/5.0 Chrome/140 Safari/537.36', platform: 'MacIntel', maxTouchPoints: 0, standalone: false },
       matchMedia() { return { matches: false }; },
-      sessionStorage: {
+      localStorage: {
         getItem(key) { return stored.get(key) || null; },
         setItem(key, value) { stored.set(key, value); }
       },
@@ -120,4 +120,37 @@ test('native install events replace fallback instructions and record the browser
   assert.equal(elements['install-app-prompt'].hidden, true);
   assert.equal(stored.get('musalla-install-dismissed'), '1');
   assert.ok(analytics.some(([, eventName, details]) => eventName === 'pwa_install_choice' && details.outcome === 'dismissed'));
+});
+
+test('a dismissed install offer stays hidden in later browser sessions', () => {
+  const script = fs.readFileSync(path.join(__dirname, '..', 'public', 'app-install.js'), 'utf8');
+  const elements = {
+    'install-app-prompt': { hidden: true },
+    'install-app-button': {},
+    'install-app-close': {},
+    'install-app-message': {},
+    'install-app-instructions': {}
+  };
+  let listenerRegistered = false;
+  const context = {
+    document: {
+      getElementById(id) { return elements[id] || null; },
+      querySelector() { return null; },
+      body: { classList: { toggle() {} } }
+    },
+    window: {
+      navigator: { userAgent: 'Mozilla/5.0 Chrome/140 Safari/537.36', platform: 'MacIntel', maxTouchPoints: 0, standalone: false },
+      matchMedia() { return { matches: false }; },
+      localStorage: {
+        getItem(key) { return key === 'musalla-install-dismissed' ? '1' : null; },
+        setItem() {}
+      },
+      location: { pathname: '/', assign() {} },
+      addEventListener() { listenerRegistered = true; }
+    }
+  };
+
+  vm.runInNewContext(script, context);
+  assert.equal(elements['install-app-prompt'].hidden, true);
+  assert.equal(listenerRegistered, false);
 });

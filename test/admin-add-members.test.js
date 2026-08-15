@@ -7,7 +7,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('Musalla admins and super admins can activate members by email with selected roles', async () => {
+test('Musalla admins and super admins can activate named members with optional email addresses', async () => {
   const server = read('src/server.js');
   const membersView = read('views/members.ejs');
   const superAdminView = read('views/super-admin-musalla.ejs');
@@ -18,10 +18,12 @@ test('Musalla admins and super admins can activate members by email with selecte
 
   assert.match(server, /app\.post\('\/musallas\/:guid\/members\/add', requireAuth, musallaAccess, requireAdmin/);
   assert.match(server, /app\.post\('\/super-admin\/musallas\/:id\/members\/add', requireAuth, requireSuperAdmin/);
-  assert.match(server, /INSERT INTO musalla_users \(email,name,is_test,registration_completed\)/);
+  assert.match(server, /INSERT INTO musalla_users \(email,name,is_test,registration_completed\) VALUES \(NULL,\?,\?,TRUE\)/);
   assert.match(server, /SET status='active',role=\?,requested_role=''/);
   assert.match(server, /VALUES \(\?,\?,\?,'','active'\)/);
+  assert.match(form, /name="name"[^>]+required/);
   assert.match(form, /type="email"/);
+  assert.doesNotMatch(form, /type="email"[^>]+required/);
   assert.match(form, /name="roles" value="imam"/);
   assert.match(form, /name="roles" value="admin"/);
   assert.match(form, /starts immediately/);
@@ -33,10 +35,22 @@ test('Musalla admins and super admins can activate members by email with selecte
   assert.ok(membersView.indexOf('<h2>Current members</h2>') < membersView.indexOf("include('partials/add-member-form'"));
   assert.ok(superAdminView.indexOf('<h2>Membership requests</h2>') < superAdminView.indexOf('<h2>Members</h2>'));
   assert.ok(superAdminView.indexOf('<h2>Members</h2>') < superAdminView.indexOf("include('partials/add-member-form'"));
-  assert.match(membersView, /<script src="\/members\.js\?v=5"><\/script>/);
-  assert.match(superAdminView, /<script src="\/members\.js\?v=5"><\/script>/);
+  assert.match(form, /Email is optional/);
+  assert.match(membersView, /<script src="\/members\.js\?v=6"><\/script>/);
+  assert.match(superAdminView, /<script src="\/members\.js\?v=6"><\/script>/);
   assert.match(membersScript, /dialog\.showModal\(\)/);
+  assert.match(membersScript, /input\[name="name"\]/);
   assert.match(membersScript, /dialog\.close\(\)/);
+});
+
+test('unregistered members use ordinary user and membership records without merge identities', () => {
+  const server = read('src/server.js');
+  const database = read('src/db.js');
+
+  assert.match(database, /email VARCHAR\(320\) NULL UNIQUE/);
+  assert.match(database, /ALTER TABLE musalla_users MODIFY email VARCHAR\(320\) NULL/);
+  assert.doesNotMatch(server, /musalla_unregistered_imams|merge_unregistered|unregistered_imam_id/);
+  assert.doesNotMatch(database, /musalla_unregistered_imams|unregistered_imam_id/);
 });
 
 test('only the signed-in membership owner can reject an added membership', () => {

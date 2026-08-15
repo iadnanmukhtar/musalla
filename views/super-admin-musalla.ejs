@@ -82,7 +82,7 @@
       <% } %>
       <% requests.forEach(request=>{ const requestProfileUrl=`/super-admin/musallas/${musalla.id}/members/${request.id}/profile`; %>
         <div class="membership-request initial-approval">
-          <div class="member-summary"><a class="member-avatar-link" href="<%= requestProfileUrl %>" aria-label="View <%= request.name %>'s profile"><span class="mini-avatar"><% if(request.avatar_url){ %><img src="<%= request.avatar_url %>" alt=""><% } else { %><%= request.name[0] %><% } %></span></a><div><a class="member-name" href="<%= requestProfileUrl %>"><%= request.name %></a><small><%= request.email %></small></div></div>
+          <div class="member-summary"><a class="member-avatar-link" href="<%= requestProfileUrl %>" aria-label="View <%= request.name %>'s profile"><span class="mini-avatar"><% if(request.avatar_url){ %><img src="<%= request.avatar_url %>" alt=""><% } else { %><%= request.name[0] %><% } %></span></a><div><a class="member-name" href="<%= requestProfileUrl %>"><%= request.name %></a><small><%= request.email || 'No email address' %></small></div></div>
           <div class="request-actions">
             <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack" data-confirm-title="Approve <%= request.name %>?" data-confirm="This membership will be activated with the selected roles." data-confirm-button="Approve membership">
               <div class="role-options">
@@ -110,7 +110,7 @@
 <%= member.name %>
 </b>
 <small>
-<%= member.email %> · <%= member.role.split(',').join(' · ') %>
+<%= member.email || 'No email address' %> · <%= member.role.split(',').join(' · ') %>
 </small>
 </span>
 <b>›</b>
@@ -122,5 +122,5 @@
 </section>
   <%- include('partials/add-member-form',{addMemberAction:`/super-admin/musallas/${musalla.id}/members/add`}) %>
 </main>
-<script src="/members.js?v=5"></script>
+<script src="/members.js?v=6"></script>
 <%- include('partials/foot') %>

@@ -12,7 +12,7 @@ Each Musalla has a weekly roster for Fajr, Zuhr, Asr, Maghrib, and Isha. When an
 
 Friday schedules can be configured with up to three Jumuah slots. When at least one Jumuah slot is enabled, the enabled slots replace Zuhr on Fridays. If none are enabled, the regular Zuhr slot remains.
 
-Musalla administrators and super admins can add an Imam, another administrator, or both by email. The selected roles are active immediately. The recipient is emailed a link to sign in with that address and reject the membership if they do not want it.
+Musalla administrators and super admins can add an Imam, another administrator, or both by name, with an optional email address. The selected roles are active immediately. Members added without email are unregistered and can be scheduled like any other Imam. When an email is provided, the recipient is emailed a link to sign in with that address and reject the membership if they do not want it.
 
 ## Roles
 
@@ -26,11 +26,11 @@ Imams have all regular member capabilities and can opt in to available prayer sl
 
 ### Musalla administrators
 
-Musalla administrators manage membership requests, roles, member access, and Imam removal. They can add Imams and other administrators directly by email; the membership is active immediately, and the recipient receives an email allowing them to reject it. Within their own Musalla, administrators can update the name of active Imams and other administrators. They can also edit the Musalla name, address, logo, timetable link, and Jumuah configuration.
+Musalla administrators manage membership requests, roles, member access, and member removal. They can add Imams and other administrators by name with or without an email address; the membership is active immediately, and a recipient with email receives a message allowing them to reject it. Within their own Musalla, administrators can update the name and optional email address of active Imams and other administrators. They can also edit the Musalla name, address, logo, timetable link, and Jumuah configuration.
 
 ### Super admins
 
-Super admins manage all Musallas without becoming local members. They can register, edit, enable, disable, or delete a Musalla; approve or deny any pending membership request; add Imams or administrators directly by email; edit every pending, active, or disabled member profile; manage member roles; and edit the same Musalla settings available to local administrators.
+Super admins manage all Musallas without becoming local members. They can register, edit, enable, disable, or delete a Musalla; approve or deny any pending membership request; add Imams or administrators with or without an email address; edit every pending, active, or disabled member profile including its optional email address; remove members; manage member roles; and edit the same Musalla settings available to local administrators.
 
 Super-admin access is controlled exclusively by `musalla_users.is_superuser=TRUE` in MySQL. It is not granted through an environment variable.
 
@@ -64,7 +64,7 @@ Configure MySQL with the `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWO
 - `musalla_prayer_slots`
 - `musalla_daily_digest_deliveries`
 
-Users and Musallas include an `is_test` flag to isolate test records. Memberships store the active role and, when applicable, an invited Imam role awaiting approval.
+Users and Musallas include an `is_test` flag to isolate test records. A user email may be null for an unregistered member. Memberships store the active role and, when applicable, an invited Imam role awaiting approval.
 
 ## Google sign-in
 
@@ -78,7 +78,7 @@ Then configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BASE_URL`, and `SESS
 
 If a user selects Register a Musalla before authentication, the application returns them to that flow after Google sign-in. A new user must complete the Musalla details form. An existing user can cancel and return to the application.
 
-When an administrator adds an email address that has not signed in before, the application creates a placeholder account. The first Google sign-in with that email claims the account without duplicating the membership.
+When an administrator adds an email address that has not signed in before, or later adds one to an unregistered member’s profile, the first Google sign-in with that email claims the account without duplicating the membership.
 
 ## Test mode
 
@@ -96,7 +96,7 @@ Test users and Musallas are stored with `is_test=TRUE`. Any new user or Musalla 
 
 Email delivery and sender identity are controlled entirely by the SMTP settings in `.env`. Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, and `MAIL_FROM`. For local Gmail, use `smtp.gmail.com`, port `587`, `SMTP_SECURE=false`, the Gmail address as `SMTP_USER`, a Google app password as `SMTP_PASSWORD`, and the same Gmail address in `MAIL_FROM`. In production, set `MAIL_FROM="Musalla <musalla@islamunlocked.com>"` and use an SMTP service that authorizes that sender.
 
-The application sends notifications when a Musalla is submitted for review, when a new or renewed membership request is created, and when an administrator adds someone directly by email.
+The application sends notifications when a Musalla is submitted for review, when a new or renewed membership request is created, and when an administrator adds someone with an email address.
 
 Every Imam schedule opt-in, opt-out, or replacement sends the updated seven-day schedule to all active Imams and Musalla administrators for that Musalla.
 
