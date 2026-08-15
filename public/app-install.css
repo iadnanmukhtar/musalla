@@ -2,30 +2,39 @@
   position: fixed;
   z-index: 20;
   left: 50%;
-  bottom: 84px;
+  bottom: max(18px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  width: min(calc(100% - 24px), 576px);
+  width: min(calc(100% - 24px), 560px);
   display: grid;
-  grid-template-columns: 46px 1fr auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 14px 42px 14px 14px;
+  gap: 13px;
+  padding: 16px 44px 16px 16px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 20px;
   background: #fff;
-  box-shadow: 0 16px 45px rgba(18, 60, 53, .22);
+  box-shadow: 0 20px 54px rgba(18, 60, 53, .24);
 }
 
 .install-app-prompt[hidden] { display: none; }
-.install-prompt-visible .app-shell { padding-bottom: calc(280px + env(safe-area-inset-bottom)); }
-.install-app-prompt img { width: 46px; height: 46px; border-radius: 12px; }
-.install-app-prompt strong { display: block; color: var(--green); font-size: 15px; }
-.install-app-prompt p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
-.install-app-prompt .button { width: auto; padding: 10px 14px; }
-.install-app-close { position: absolute; right: 9px; top: 7px; border: 0; background: transparent; color: var(--muted); font-size: 22px; cursor: pointer; }
+.install-prompt-visible .app-shell { padding-bottom: calc(230px + env(safe-area-inset-bottom)); }
+.install-prompt-has-bottom-nav .install-app-prompt { bottom: calc(84px + env(safe-area-inset-bottom)); }
+.install-app-prompt img { width: 52px; height: 52px; border-radius: 14px; }
+.install-app-copy { min-width: 0; }
+.install-app-copy > span { display: block; margin-bottom: 2px; color: var(--gold); font-size: 9px; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
+.install-app-prompt strong { display: block; color: var(--green); font-size: 16px; line-height: 1.25; }
+.install-app-prompt p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.install-app-prompt .install-app-instructions { margin-top: 7px; color: var(--green); font-weight: 700; }
+.install-app-prompt .button { width: auto; min-height: 42px; padding: 10px 15px; white-space: nowrap; }
+.install-app-close { position: absolute; right: 9px; top: 7px; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
+.install-app-close:hover,.install-app-close:focus-visible { background: var(--mint); color: var(--green); }
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .install-app-prompt { display: none !important; }
+}
 
 @media (max-width: 430px) {
-  .install-app-prompt { grid-template-columns: 42px 1fr; }
-  .install-app-prompt img { width: 42px; height: 42px; }
+  .install-app-prompt { grid-template-columns: 46px minmax(0, 1fr); gap: 11px; padding: 14px 42px 14px 14px; }
+  .install-app-prompt img { width: 46px; height: 46px; border-radius: 12px; }
   .install-app-prompt .button { grid-column: 1 / -1; width: 100%; }
 }

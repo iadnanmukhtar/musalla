@@ -1,0 +1,35 @@
+.home-page {
+  padding: 0;
+}
+
+.home-login {
+  min-height: calc(100dvh - 88px);
+}
+
+.home-content {
+  display: grid;
+  gap: 54px;
+  padding: 50px 22px 22px;
+}
+
+.home-content .about-hero {
+  padding-top: 8px;
+}
+
+.about-hero h2 {
+  max-width: 500px;
+  margin: 5px 0 16px;
+  color: var(--green);
+  font-size: clamp(38px, 10vw, 54px);
+  line-height: 1.02;
+}
+
+.home-content #about {
+  scroll-margin-top: 24px;
+}
+
+@media (min-width: 601px) {
+  .home-login {
+    min-height: calc(100vh - 148px);
+  }
+}

@@ -1,0 +1,13 @@
+<%- include('partials/head',{title:'Reject membership'}) %><%- include('partials/nav') %>
+<main>
+  <header class="page-head"><p class="eyebrow">MEMBERSHIP</p><h1>Reject membership</h1><p>You were added to this Musalla by an administrator.</p></header>
+  <section class="surface stack">
+    <div><small>Musalla</small><h2><%= membership.name %></h2></div>
+    <p>Your assigned role is <b><%= roleLabel %></b>. Rejecting this membership removes your access and clears any future prayer assignments.</p>
+    <form action="/memberships/<%= membership.guid %>/reject" method="post" data-confirm-title="Reject this membership?" data-confirm="Your access will be removed and any future prayer assignments will be cleared." data-confirm-button="Reject membership" data-confirm-style="danger">
+      <button class="button danger">Reject membership</button>
+    </form>
+    <a class="button secondary" href="/">Keep membership</a>
+  </section>
+</main>
+<%- include('partials/foot') %>

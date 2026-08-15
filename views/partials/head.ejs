@@ -7,7 +7,7 @@
 	<meta name="theme-color" content="#08a1d4">
 	<title><%= title %> · Musalla</title>
 	<meta name="description" content="<%= pageDescription %>">
-	<meta name="robots" content="<%= publicPage?'index,follow':'noindex,nofollow' %>">
+	<meta name="robots" content="<%= typeof robots!=='undefined'?robots:(publicPage?'index,follow':'noindex,nofollow') %>">
 	<% if(typeof googleSiteVerification!=='undefined'&&googleSiteVerification){ %>
 	<meta name="google-site-verification" content="<%= googleSiteVerification %>"><% } %>
 	<link rel="canonical" href="<%= canonicalUrl %>">
@@ -23,8 +23,8 @@
 	<link rel="icon" href="/icon.svg" type="image/svg+xml">
 	<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 	<link rel="stylesheet" href="/app.css?v=7">
-	<link rel="stylesheet" href="/musalla.css?v=4">
-	<link rel="stylesheet" href="/app-install.css?v=9">
+	<link rel="stylesheet" href="/musalla.css?v=7">
+	<link rel="stylesheet" href="/app-install.css?v=10">
 </head>
 <body>
 	<div class="app-shell">

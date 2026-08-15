@@ -5,7 +5,6 @@
   const message = card.dataset.inviteMessage;
   const messageField = dialog.querySelector('#invite-message');
   const shareButton = dialog.querySelector('#share-invite');
-  const feedback = dialog.querySelector('#invite-feedback');
   messageField.value = message;
   document.querySelector('#open-invite').addEventListener('click', () => dialog.showModal());
   document.querySelector('#close-invite').addEventListener('click', () => dialog.close());
@@ -13,13 +12,13 @@
     try {
       if (navigator.share) {
         await navigator.share({ title: 'Imam invitation', text: message });
-        feedback.textContent = 'Invitation shared.';
+        window.showToast('Invitation shared.');
       } else {
         await navigator.clipboard.writeText(message);
-        feedback.textContent = 'Invitation copied to your clipboard.';
+        window.showToast('Invitation copied to your clipboard.');
       }
     } catch (error) {
-      if (error.name !== 'AbortError') feedback.textContent = 'Unable to share. Copy the message above instead.';
+      if (error.name !== 'AbortError') window.showToast('Unable to share. Copy the message above instead.', { type: 'error' });
     }
   });
 })();

@@ -1,0 +1,17 @@
+<section class="surface stack">
+  <div>
+    <h2>Add member by email</h2>
+    <p>Add an Imam, an Administrator, or both. Their membership starts immediately, and they will receive an email with an option to reject it.</p>
+  </div>
+  <form action="<%= addMemberAction %>" method="post" class="stack" data-confirm-title="Add this member?" data-confirm="The selected roles will be activated immediately and the member will be emailed an option to reject the membership." data-confirm-button="Add member">
+    <label>Email address<input name="email" type="email" autocomplete="email" maxlength="320" required placeholder="member@example.com"></label>
+    <fieldset class="profile-fieldset">
+      <legend>Roles</legend>
+      <div class="role-options">
+        <label class="role-option"><input type="checkbox" name="roles" value="imam"> Imam</label>
+        <label class="role-option"><input type="checkbox" name="roles" value="admin"> Administrator</label>
+      </div>
+    </fieldset>
+    <button class="button">Add member</button>
+  </form>
+</section>

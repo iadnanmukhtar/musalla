@@ -1,7 +1,7 @@
 <% if(user && !hideNavigation){ %>
   <nav class="bottom-nav">
     <% if(superAdminMode){ %>
-      <a class="<%= path.startsWith('/super-admin')?'active':'' %>" href="/super-admin"><span class="nav-icon">⚙<% if(typeof initialApprovalCount!=='undefined'&&initialApprovalCount){ %><b class="nav-badge"><%= initialApprovalCount %></b><% } %></span>Super Admin<% if(typeof initialApprovalCount!=='undefined'&&initialApprovalCount){ %><span class="sr-only"><%= initialApprovalCount %> new Musalla<%= initialApprovalCount===1?'':'s' %> awaiting first-member approval</span><% } %></a>
+      <a class="<%= path.startsWith('/super-admin')?'active':'' %>" href="/super-admin"><span class="nav-icon">⚙<% if(typeof superAdminPendingCount!=='undefined'&&superAdminPendingCount){ %><b class="nav-badge"><%= superAdminPendingCount %></b><% } %></span>Super Admin<% if(typeof superAdminPendingCount!=='undefined'&&superAdminPendingCount){ %><span class="sr-only"><%= superAdminPendingCount %> pending membership request<%= superAdminPendingCount===1?'':'s' %></span><% } %></a>
       <% if(canSwitchToMember){ %><form action="/view-mode" method="post"><input type="hidden" name="mode" value="member"><button><span>⇄</span>Musalla Role</button></form><% } %>
       <a class="<%= path==='/profile'?'active':'' %>" href="/profile"><span>♙</span>Profile</a>
     <% } else { %>
@@ -14,12 +14,21 @@
   </nav>
 <% } %>
 <dialog class="confirmation-dialog" id="confirmation-dialog"><div class="dialog-card"><button class="dialog-close" id="confirmation-close" type="button" aria-label="Close">×</button><p class="eyebrow">PLEASE CONFIRM</p><h2 id="confirmation-title">Confirm membership action</h2><p id="confirmation-message"></p><div class="dialog-actions"><button class="button secondary" id="confirmation-cancel" type="button">Cancel</button><button class="button danger" id="confirmation-continue" type="button">Confirm</button></div></div></dialog>
-<% if(registrationConfirmation){ %><dialog class="confirmation-dialog registration-success-dialog" id="registration-success-dialog"><div class="dialog-card"><button class="dialog-close" id="registration-success-close" type="button" aria-label="Close">×</button><p class="eyebrow">REGISTRATION COMPLETE</p><h2><%= registrationConfirmation.name %> was registered</h2><p><%= registrationConfirmation.message %></p><button class="button" id="registration-success-continue" type="button">Continue</button></div></dialog><% } %>
-<aside class="install-app-prompt" id="install-app-prompt" aria-labelledby="install-app-title" hidden>
+<% const toastNotice=typeof notice!=='undefined'&&notice?(typeof notice==='string'?{message:notice,type:'success'}:notice):null; const registrationToast=typeof registrationConfirmation!=='undefined'?registrationConfirmation:null; %>
+<div class="toast-region<%= user&&!hideNavigation?' has-bottom-nav':'' %>" data-toast-region aria-live="polite" aria-atomic="false">
+  <% if(toastNotice){ %><div class="toast toast-<%= toastNotice.type==='error'?'error':'success' %>" data-toast data-toast-autoclose="<%= toastNotice.type==='error'?'7000':'4500' %>" role="<%= toastNotice.type==='error'?'alert':'status' %>"><span class="toast-icon" aria-hidden="true"><%= toastNotice.type==='error'?'!':'✓' %></span><span class="toast-message"><%= toastNotice.message %></span><button class="toast-close" type="button" aria-label="Dismiss notification">×</button></div><% } %>
+  <% if(registrationToast){ %><div class="toast toast-success" data-toast data-toast-autoclose="6000" role="status"><span class="toast-icon" aria-hidden="true">✓</span><span class="toast-message"><strong><%= registrationToast.name %> was registered.</strong> <%= registrationToast.message %></span><button class="toast-close" type="button" aria-label="Dismiss notification">×</button></div><% } %>
+</div>
+<aside class="install-app-prompt" id="install-app-prompt" aria-labelledby="install-app-title" aria-describedby="install-app-message install-app-instructions" hidden>
   <button class="install-app-close" id="install-app-close" type="button" aria-label="Dismiss app installation prompt">×</button>
   <img src="/icon-192.png" alt="">
-  <div><strong id="install-app-title">Install Musalla</strong><p id="install-app-message">Install the app for quick access from this device.</p></div>
-  <button class="button" id="install-app-button" type="button">Install</button>
+  <div class="install-app-copy">
+    <span>Musalla app</span>
+    <strong id="install-app-title">Install Musalla</strong>
+    <p id="install-app-message">Keep weekly Salah and Jumuah schedules one tap away.</p>
+    <p class="install-app-instructions" id="install-app-instructions" aria-live="polite" hidden></p>
+  </div>
+  <button class="button" id="install-app-button" type="button">Install app</button>
 </aside>
 </div>
 <!-- Google tag (gtag.js) -->
@@ -30,4 +39,4 @@
   gtag('js', new Date());
   gtag('config', 'G-WN0F9NNBRE');
 </script>
-<script src="/confirmation.js?v=4"></script><script src="/app-install.js?v=9"></script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js?v=11');</script></body></html>
+<script src="/toast.js?v=2"></script><script src="/confirmation.js?v=5"></script><script src="/app-install.js?v=10"></script><script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js?v=22');</script></body></html>

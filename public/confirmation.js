@@ -51,15 +51,4 @@
       HTMLFormElement.prototype.submit.call(form);
     }
   });
-
-  const successDialog = document.querySelector('#registration-success-dialog');
-  if (successDialog) {
-    const closeSuccess = () => successDialog.close();
-    successDialog.querySelector('#registration-success-close').addEventListener('click', closeSuccess);
-    successDialog.querySelector('#registration-success-continue').addEventListener('click', closeSuccess);
-    successDialog.addEventListener('click', event => {
-      if (event.target === successDialog) closeSuccess();
-    });
-    successDialog.showModal();
-  }
 })();

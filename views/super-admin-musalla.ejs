@@ -7,6 +7,7 @@
 <h1>Edit Musalla</h1>
 <p>Update this Musalla's platform record.</p>
 </header>
+  <form id="musalla-notifications-form" action="/super-admin/musallas/<%= musalla.id %>/notifications" method="post"></form>
   <form action="/super-admin/musallas/<%= musalla.id %>" method="post" enctype="multipart/form-data" class="surface stack">
 <label>Logo<% if(musalla.logo_url){ %>
 <a href="/m/<%= musalla.guid %>" aria-label="View <%= musalla.name %>">
@@ -18,18 +19,29 @@
 </label>
 <label>Name<input name="name" required maxlength="150" value="<%= musalla.name %>">
 </label>
-<label>Address<input name="address" maxlength="300" value="<%= musalla.address %>">
-</label>
-<label>About <span class="optional-label">Optional</span>
-<textarea name="about" maxlength="3000" rows="6">
+<fieldset class="profile-fieldset"><legend>Public address</legend>
+<label>Street address<input name="street_address" required maxlength="200" value="<%= musalla.street_address || '' %>"></label>
+<label>City<input name="address_locality" required maxlength="120" value="<%= musalla.address_locality || '' %>"></label>
+<div class="profile-field-grid"><label>State or region<input name="address_region" maxlength="120" value="<%= musalla.address_region || '' %>"></label><label>Postal code<input name="postal_code" maxlength="24" value="<%= musalla.postal_code || '' %>"></label></div>
+<label>Country<input name="address_country" required maxlength="100" value="<%= musalla.address_country || '' %>"></label>
+</fieldset>
+<label>Public description
+<textarea name="about" required maxlength="3000" rows="6">
 <%= musalla.about || '' %>
 </textarea>
 <small>This description appears on the public Musalla page.</small>
 </label>
+<label>Facilities <span class="optional-label">Optional</span>
+<textarea name="facilities" maxlength="2000" rows="4" placeholder="Parking&#10;Wudu facilities&#10;Women’s prayer area"><%= musalla.facilities || '' %></textarea>
+<small>Enter one facility per line.</small>
+</label>
+<label>Website <span class="optional-label">Optional</span><input name="website_url" type="url" value="<%= musalla.website_url || '' %>" placeholder="https://..."></label>
+<div class="profile-field-grid"><label>Public email <span class="optional-label">Optional</span><input name="public_email" type="email" maxlength="320" value="<%= musalla.public_email || '' %>"></label><label>Public phone <span class="optional-label">Optional</span><input name="public_phone" type="tel" maxlength="40" value="<%= musalla.public_phone || '' %>"></label></div>
 <label>Prayer timetable or app link<input name="timetable_url" type="url" value="<%= musalla.timetable_url %>" placeholder="https://...">
 <small>This link appears on the Musalla roster.</small>
 </label>
 <input name="timezone" type="hidden" value="<%= musalla.timezone %>">
+<label class="toggle-setting"><span><b>Enable notifications</b><small>Allow email notifications for this Musalla. Changes save immediately.</small></span><input type="checkbox" name="notifications_enabled" value="1" form="musalla-notifications-form" onchange="this.form.submit()" <%= Number(musalla.notifications_enabled)===1?'checked':'' %>></label>
 <details class="settings-panel">
 <summary><span>Salah slots</span><small>Daily opt-in slots</small></summary>
 <div class="settings-panel-content">
@@ -60,25 +72,23 @@
 </details>
 <button class="button">Save Musalla</button>
 </form>
-  <% if(needsInitialAdmin){ %>
+  <%- include('partials/add-member-form',{addMemberAction:`/super-admin/musallas/${musalla.id}/members/add`}) %>
+  <% if(requests.length){ %>
     <section class="surface super-members">
-      <h2>Initial membership requests</h2>
-      <p>The Musalla does not have an administrator yet. As a super admin, approve its first member and assign the Imam role, Administrator role, or both.</p>
-      <% requests.forEach(request=>{ %>
+      <h2>Membership requests</h2>
+      <% if(needsInitialAdmin){ %>
+        <p>The Musalla does not have an administrator yet. Approve its first member and assign the Imam role, Administrator role, or both.</p>
+      <% } else { %>
+        <p>As a super admin, you can approve or deny any pending request for this Musalla. Leave both roles unchecked to approve someone as a Member.</p>
+      <% } %>
+      <% requests.forEach(request=>{ const requestProfileUrl=`/super-admin/musallas/${musalla.id}/members/${request.id}/profile`; %>
         <div class="membership-request initial-approval">
-          <div class="initial-requester">
-<b>
-<%= request.name %>
-</b>
-<small>
-<%= request.email %>
-</small>
-</div>
+          <div class="member-summary"><a class="member-avatar-link" href="<%= requestProfileUrl %>" aria-label="View <%= request.name %>'s profile"><span class="mini-avatar"><% if(request.avatar_url){ %><img src="<%= request.avatar_url %>" alt=""><% } else { %><%= request.name[0] %><% } %></span></a><div><a class="member-name" href="<%= requestProfileUrl %>"><%= request.name %></a><small><%= request.email %></small></div></div>
           <div class="request-actions">
             <form action="/super-admin/musallas/<%= musalla.id %>/membership-requests/<%= request.id %>/approve" method="post" class="stack" data-confirm-title="Approve <%= request.name %>?" data-confirm="This membership will be activated with the selected roles." data-confirm-button="Approve membership">
               <div class="role-options">
                 <label class="role-option">
-<input type="checkbox" name="roles" value="imam"> Imam</label>
+<input type="checkbox" name="roles" value="imam" <%= request.requested_role==='imam'?'checked':'' %>> Imam</label>
                 <label class="role-option">
 <input type="checkbox" name="roles" value="admin"> Administrator</label>
               </div>
@@ -90,9 +100,6 @@
           </div>
         </div>
       <% }) %>
-      <% if(!requests.length){ %>
-<div class="empty">No pending membership requests.</div>
-<% } %>
     </section>
   <% } %>
   <section class="surface super-members">

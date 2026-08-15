@@ -93,7 +93,7 @@ async function claimDigest(pool, musallaId, digestDate) {
 
 async function sendDailyAdminPrayerDigests(pool, { now = new Date(), baseUrl = process.env.BASE_URL || 'http://localhost:3000' } = {}) {
   const digestDate = easternDigestDate(now);
-  const [musallas] = await pool.execute(`SELECT id,guid,name,timezone,logo_url FROM musalla_locations WHERE is_disabled=FALSE AND is_test=${TEST_MODE?'TRUE':'FALSE'} ORDER BY id`);
+  const [musallas] = await pool.execute(`SELECT id,guid,name,timezone,logo_url FROM musalla_locations WHERE is_disabled=FALSE AND notifications_enabled=TRUE AND is_test=${TEST_MODE?'TRUE':'FALSE'} ORDER BY id`);
   let sent = 0;
   for (const musalla of musallas) {
     const token = await claimDigest(pool, musalla.id, digestDate);

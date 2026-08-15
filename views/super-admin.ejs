@@ -12,13 +12,13 @@
 <span>
 <%= musallas.length %>
 </span>
-<% if(initialApprovalCount){ %>
+<% if(superAdminPendingCount){ %>
 <b class="approval-count-badge">
-<%= initialApprovalCount %> new</b>
+<%= superAdminPendingCount %> pending</b>
 <% } %>
 </div>
   <div class="admin-musalla-list">
-<% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; const needsFirstApproval=Number(m.pending_count)>0&&Number(m.admin_count)===0; %>
+<% musallas.forEach(m=>{ const jumuahSlotCount=[1,2,3].filter(number=>m[`jumuah_${number}_enabled`]).length; const pendingCount=Number(m.pending_count); %>
 <article class="surface admin-musalla <%= m.is_disabled?'disabled':'' %>">
 <div class="admin-musalla-info">
 <a class="mosque-icon musalla-logo-link" href="/super-admin/musallas/<%= m.id %>" aria-label="Manage <%= m.name %>">
@@ -31,9 +31,9 @@
 <a class="admin-musalla-name" href="/super-admin/musallas/<%= m.id %>">
 <%= m.name %>
 </a>
-<% if(needsFirstApproval){ %>
+<% if(pendingCount){ %>
 <span class="new-musalla-badge">
-<%= m.pending_count %> awaiting approval</span>
+<%= pendingCount %> awaiting approval</span>
 <% } %>
 </h3>
 <% if(m.address){ %>

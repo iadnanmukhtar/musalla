@@ -1,0 +1,29 @@
+<%- include('partials/head',{title:'Imam, salah, and khutbah scheduling for Masajid',isPublic:true,canonicalPath:'/',description:'Musalla gives Masajid and Musallas one clear weekly workspace for imam assignments, salah coverage, Jumuah planning, invitations, and reminders.',googleSiteVerification:'SNEO088MNs6yP8gWUeG8napQyt-TaAeSl92dGoP29as',structuredData}) %>
+<link rel="stylesheet" href="/about-carousel.css?v=1">
+<link rel="stylesheet" href="/home.css?v=1">
+<main class="home-page">
+  <section class="login home-login" id="sign-in" aria-labelledby="home-title">
+    <%- include('partials/public-nav',{navClass:'login-nav',brandClass:'login-brand',menuButtonClass:'login-menu-button'}) %>
+    <div class="login-content"><div class="hero-mark"><img src="/icon.svg" alt=""></div><h1 id="home-title">Musalla</h1><p class="lead">Serve your community, one salah at a time.</p><div class="login-positioning"><b>Scheduling without the group-chat scramble.</b></div><div class="login-card"><h2>Sign in</h2><p>Use your Google account to join your Musalla and volunteer to lead salah.</p><% if(googleReady){ %><a class="button google" href="/auth/google"><span>G</span> Continue with Google</a><div class="or"><span>New Musalla</span></div><a class="button secondary" href="/auth/google?next=/register-musalla">Register a Musalla</a><% } else { %><button class="button google" disabled><span>G</span> Google sign-in not configured</button><button class="button secondary" disabled>Register a Musalla</button><% } %><% if(testMode){ %><div class="test-login"><div class="or"><span>Test mode</span></div><p>Use a seeded role, or restart the first-time onboarding flow with a clean new user.</p><div class="test-login-actions"><form class="test-new-user" action="/auth/test/new" method="post"><button class="button secondary">Log in as new user</button></form><form action="/auth/test/imam" method="post"><button class="button secondary">Log in as test imam</button></form><form action="/auth/test/admin" method="post"><button class="button secondary">Log in as test admin</button></form></div></div><% } %></div></div>
+  </section>
+  <div class="home-content">
+    <%- include('partials/about-overview',{headingLevel:2}) %>
+    <% if(featuredMusallas.length){ %><section class="landing-communities" aria-labelledby="landing-communities-title">
+      <div class="landing-section-heading"><p class="eyebrow">COMMUNITY DIRECTORY</p><h2 id="landing-communities-title">Find a participating Musalla</h2><p>Public community pages include location, prayer availability, facilities, and contact details supplied by each Musalla.</p></div>
+      <div class="landing-community-grid"><% featuredMusallas.forEach(musalla => { const jumuah=[1,2,3].filter(number=>musalla[`jumuah_${number}_enabled`]).length; %><a class="surface landing-community" href="/m/<%= musalla.guid %>"><span class="mosque-icon"><% if(musalla.logo_url){ %><img src="<%= musalla.logo_url %>" alt=""><% } else { %>⌂<% } %></span><span><b><%= musalla.name %></b><small><%= musalla.address || 'Community prayer space' %></small><em><%= jumuah?`${jumuah} Jumuah ${jumuah===1?'slot':'slots'}`:'Prayer community profile' %></em></span><strong aria-hidden="true">›</strong></a><% }) %></div>
+      <a class="button secondary" href="/musallas">View all available Musallas</a>
+    </section><% } %>
+    <section class="landing-faq" aria-labelledby="landing-faq-title">
+      <div class="landing-section-heading"><p class="eyebrow">FREQUENTLY ASKED QUESTIONS</p><h2 id="landing-faq-title">A few things to know</h2></div>
+      <div class="faq-list">
+        <details class="surface"><summary>Who is Musalla for?</summary><p>Musalla is for imams and Musalla or Masjid administrators who coordinate prayer leadership. Community members may join when invited or approved by their local administrators.</p></details>
+        <details class="surface"><summary>Can each community choose its prayer slots?</summary><p>Yes. Administrators choose which daily salah slots appear and can enable up to three Jumuah slots. The weekly roster follows those settings.</p></details>
+        <details class="surface"><summary>How do imams volunteer?</summary><p>After joining a Musalla as an Imam, a member can open the weekly roster and claim an available prayer. Existing assignments remain visible to the community team.</p></details>
+        <details class="surface"><summary>Does Musalla replace a public prayer timetable?</summary><p>No. Musalla organizes imam and khutbah coverage. Each public Musalla profile can link to its own timetable, website, and contact details.</p></details>
+        <details class="surface"><summary>Can I add my Musalla?</summary><p>Yes. Sign in with Google, register the prayer space, and complete its public profile. A super administrator reviews the initial membership before private scheduling access is granted.</p></details>
+      </div>
+    </section>
+    <section class="surface about-cta"><h2>Built thoughtfully for Musallas and Masajid</h2><p>Bring your prayer schedule and community together in one simple place.</p><div><a class="button" href="#sign-in">Sign in</a><a class="button secondary" href="/auth/google?next=/register-musalla">Register a Musalla</a></div></section>
+  </div>
+</main>
+<script src="/menu.js?v=4"></script><script src="/about-carousel.js?v=1"></script><%- include('partials/foot') %>

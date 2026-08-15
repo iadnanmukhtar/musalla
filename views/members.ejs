@@ -2,7 +2,7 @@
 <main>
   <a class="back" href="/musallas/<%= musalla.id %>">‹ Back to schedule</a>
   <header class="page-head"><p class="eyebrow"><%= musalla.name.toUpperCase() %></p><h1>Members</h1><p>Manage membership requests, imams, and administrators.</p></header>
-  <section class="invite-panel"><button class="button secondary" id="open-invite" type="button">Invite an Imam</button><dialog class="invite-dialog" id="invite-dialog"><div class="dialog-card" data-invite-message="al-salamu alaykum! You are invited to join <%= musalla.name %> as an Imam and opt in to lead prayers. Join here: <%= inviteUrl %>"><button class="dialog-close" id="close-invite" type="button" aria-label="Close">×</button><p class="eyebrow">IMAM INVITATION</p><h2>Invite to <%= musalla.name %></h2><p>Share this invitation through your preferred app.</p><textarea id="invite-message" rows="5" readonly></textarea><div class="invite-actions"><button class="button secondary" id="share-invite" type="button">Share invitation</button></div><p class="invite-feedback" id="invite-feedback" role="status"></p></div></dialog></section>
+  <%- include('partials/add-member-form',{addMemberAction:`/musallas/${musalla.id}/members/add`}) %>
   <% if(requests.length){ %>
     <section class="membership-request-list"><div class="section-title"><h2>Requests</h2><span><%= requests.length %></span></div><div class="surface">
       <% requests.forEach(request=>{ const profileUrl=`/musallas/${musalla.id}/members/${request.id}/profile`; %>
@@ -19,5 +19,4 @@
   </section>
   <form class="leave-musalla" action="/musallas/<%= musalla.id %>/leave" method="post" data-confirm-title="Leave this Musalla?" data-confirm="Your future prayer assignments at <%= musalla.name %> will be cleared." data-confirm-button="Leave Musalla" data-confirm-style="danger"><button>Leave the Musalla</button></form>
 </main>
-<script src="/members.js?v=4"></script>
 <%- include('partials/foot') %>

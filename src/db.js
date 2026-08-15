@@ -25,6 +25,7 @@ async function initializeDatabase() {
       avatar_url TEXT,
       is_superuser BOOLEAN NOT NULL DEFAULT FALSE,
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+      notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
       is_test BOOLEAN NOT NULL DEFAULT FALSE,
       registration_completed BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -32,6 +33,8 @@ async function initializeDatabase() {
   `);
   const [userTestColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_users' AND column_name='is_test'");
   if (!userTestColumns.length) await pool.query('ALTER TABLE musalla_users ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE');
+  const [userNotificationColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_users' AND column_name='notifications_enabled'");
+  if (!userNotificationColumns.length) await pool.query('ALTER TABLE musalla_users ADD COLUMN notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE AFTER is_disabled');
   const [registrationColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_users' AND column_name='registration_completed'");
   if (!registrationColumns.length) {
     await pool.query('ALTER TABLE musalla_users ADD COLUMN registration_completed BOOLEAN NOT NULL DEFAULT FALSE');
@@ -43,10 +46,20 @@ async function initializeDatabase() {
       guid CHAR(36) NOT NULL UNIQUE,
       name VARCHAR(150) NOT NULL,
       address VARCHAR(300) NOT NULL DEFAULT '',
+      street_address VARCHAR(200) NOT NULL DEFAULT '',
+      address_locality VARCHAR(120) NOT NULL DEFAULT '',
+      address_region VARCHAR(120) NOT NULL DEFAULT '',
+      postal_code VARCHAR(24) NOT NULL DEFAULT '',
+      address_country VARCHAR(100) NOT NULL DEFAULT '',
       about TEXT,
+      facilities TEXT,
+      website_url TEXT,
+      public_email VARCHAR(320) NOT NULL DEFAULT '',
+      public_phone VARCHAR(40) NOT NULL DEFAULT '',
       timetable_url TEXT,
       logo_url TEXT,
       is_disabled BOOLEAN NOT NULL DEFAULT FALSE,
+      notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
       is_test BOOLEAN NOT NULL DEFAULT FALSE,
       timezone VARCHAR(100) NOT NULL DEFAULT 'America/Chicago',
       fajr_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -71,8 +84,26 @@ async function initializeDatabase() {
   if (guidDefinitions[0]?.IS_NULLABLE === 'YES') await pool.query('ALTER TABLE musalla_locations MODIFY guid CHAR(36) NOT NULL');
   const [aboutColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='about'");
   if (!aboutColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN about TEXT NULL AFTER address');
+  const publicProfileColumnDefinitions = {
+    street_address: "VARCHAR(200) NOT NULL DEFAULT '' AFTER address",
+    address_locality: "VARCHAR(120) NOT NULL DEFAULT '' AFTER street_address",
+    address_region: "VARCHAR(120) NOT NULL DEFAULT '' AFTER address_locality",
+    postal_code: "VARCHAR(24) NOT NULL DEFAULT '' AFTER address_region",
+    address_country: "VARCHAR(100) NOT NULL DEFAULT '' AFTER postal_code",
+    facilities: 'TEXT NULL AFTER about',
+    website_url: 'TEXT NULL AFTER facilities',
+    public_email: "VARCHAR(320) NOT NULL DEFAULT '' AFTER website_url",
+    public_phone: "VARCHAR(40) NOT NULL DEFAULT '' AFTER public_email"
+  };
+  const [publicProfileColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name IN ('street_address','address_locality','address_region','postal_code','address_country','facilities','website_url','public_email','public_phone')");
+  const existingPublicProfileColumns = new Set(publicProfileColumns.map(column => column.COLUMN_NAME));
+  for (const [column, definition] of Object.entries(publicProfileColumnDefinitions)) {
+    if (!existingPublicProfileColumns.has(column)) await pool.query(`ALTER TABLE musalla_locations ADD COLUMN ${column} ${definition}`);
+  }
   const [locationTestColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='is_test'");
   if (!locationTestColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN is_test BOOLEAN NOT NULL DEFAULT FALSE');
+  const [locationNotificationColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name='notifications_enabled'");
+  if (!locationNotificationColumns.length) await pool.query('ALTER TABLE musalla_locations ADD COLUMN notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE AFTER is_disabled');
   const [salahColumns] = await pool.query("SELECT COLUMN_NAME FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='musalla_locations' AND column_name IN ('fajr_enabled','zuhr_enabled','asr_enabled','maghrib_enabled','isha_enabled')");
   const existingSalahColumns = new Set(salahColumns.map(column => column.COLUMN_NAME));
   for (const column of ['fajr_enabled','zuhr_enabled','asr_enabled','maghrib_enabled','isha_enabled']) {
@@ -126,6 +157,22 @@ async function initializeDatabase() {
     await pool.query("UPDATE musalla_prayer_slots SET prayer_name='Zuhr' WHERE prayer_name='Dhuhr'");
     await pool.query("ALTER TABLE musalla_prayer_slots MODIFY prayer_name ENUM('Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL");
   }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS musalla_prayer_recurrences (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      musalla_id BIGINT UNSIGNED NOT NULL,
+      weekday TINYINT UNSIGNED NOT NULL,
+      prayer_name ENUM('Fajr','Zuhr','Jumuah 1','Jumuah 2','Jumuah 3','Asr','Maghrib','Isha') NOT NULL,
+      imam_user_id BIGINT UNSIGNED NOT NULL,
+      starts_on DATE NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_musalla_weekly_prayer (musalla_id,weekday,prayer_name),
+      KEY idx_musalla_recurrences_imam (imam_user_id),
+      CONSTRAINT fk_musalla_recurrences_location FOREIGN KEY (musalla_id) REFERENCES musalla_locations(id) ON DELETE CASCADE,
+      CONSTRAINT fk_musalla_recurrences_imam FOREIGN KEY (imam_user_id) REFERENCES musalla_users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS musalla_daily_digest_deliveries (
       musalla_id BIGINT UNSIGNED NOT NULL,
@@ -200,6 +247,12 @@ function enabledPrayersForDate(musalla, date) {
   return [...enabledDailyPrayers.filter(prayer => prayer !== 'Zuhr'), ...enabledJumuah];
 }
 
+function recurringImamForDate(recurrences, prayerName, dateValue) {
+  const weekday = new Date(`${dateValue}T12:00:00Z`).getUTCDay();
+  const recurrence = recurrences.find(item => Number(item.weekday) === weekday && item.prayer_name === prayerName && item.starts_on <= dateValue);
+  return recurrence?.imam_user_id || null;
+}
+
 async function syncPrayerSchedules(musallaId) {
   const params = [];
   let sql = `SELECT id,timezone,fajr_enabled,zuhr_enabled,asr_enabled,maghrib_enabled,isha_enabled,jumuah_1_enabled,jumuah_2_enabled,jumuah_3_enabled FROM musalla_locations WHERE is_disabled=FALSE${TEST_MODE?'':' AND is_test=FALSE'}`;
@@ -209,17 +262,25 @@ async function syncPrayerSchedules(musallaId) {
   try {
     await connection.beginTransaction();
     for (const { id, timezone } of musallas) {
+      const musalla = musallas.find(item => Number(item.id) === Number(id));
       const { firstDate, lastDate } = scheduleBounds(new Date(), timezone);
       await connection.execute('DELETE FROM musalla_prayer_slots WHERE musalla_id=? AND (prayer_date<? OR prayer_date>?)', [id, firstDate, lastDate]);
+      const [storedRecurrences] = await connection.execute('SELECT id,weekday,prayer_name,imam_user_id,starts_on FROM musalla_prayer_recurrences WHERE musalla_id=?', [id]);
+      const recurrences = storedRecurrences.filter(recurrence => {
+        const weekdayDate = new Date('2026-01-04T12:00:00Z');
+        weekdayDate.setUTCDate(weekdayDate.getUTCDate() + Number(recurrence.weekday));
+        return enabledPrayersForDate(musalla, weekdayDate).includes(recurrence.prayer_name);
+      });
+      const obsoleteRecurrenceIds = storedRecurrences.filter(recurrence => !recurrences.includes(recurrence)).map(recurrence => recurrence.id);
+      if (obsoleteRecurrenceIds.length) await connection.query('DELETE FROM musalla_prayer_recurrences WHERE id IN (?)', [obsoleteRecurrenceIds]);
       const values = [];
       const desiredKeys = new Set();
       const date = new Date(`${firstDate}T12:00:00Z`);
       while (isoDate(date) <= lastDate) {
         const dateValue = isoDate(date);
-        const musalla = musallas.find(item => Number(item.id) === Number(id));
         const prayers = enabledPrayersForDate(musalla, date);
         for (const prayer of prayers) {
-          values.push([id, dateValue, prayer]);
+          values.push([id, dateValue, prayer, recurringImamForDate(recurrences, prayer, dateValue)]);
           desiredKeys.add(`${dateValue}|${prayer}`);
         }
         date.setUTCDate(date.getUTCDate() + 1);
@@ -227,7 +288,7 @@ async function syncPrayerSchedules(musallaId) {
       const [currentSlots] = await connection.execute('SELECT id,prayer_date,prayer_name FROM musalla_prayer_slots WHERE musalla_id=? AND prayer_date BETWEEN ? AND ?', [id, firstDate, lastDate]);
       const obsoleteIds = currentSlots.filter(slot => !desiredKeys.has(`${slot.prayer_date}|${slot.prayer_name}`)).map(slot => slot.id);
       if (obsoleteIds.length) await connection.query('DELETE FROM musalla_prayer_slots WHERE id IN (?)', [obsoleteIds]);
-      if (values.length) await connection.query('INSERT IGNORE INTO musalla_prayer_slots (musalla_id,prayer_date,prayer_name) VALUES ?', [values]);
+      if (values.length) await connection.query('INSERT IGNORE INTO musalla_prayer_slots (musalla_id,prayer_date,prayer_name,imam_user_id) VALUES ?', [values]);
     }
     await connection.commit();
   } catch (error) {
@@ -238,4 +299,4 @@ async function syncPrayerSchedules(musallaId) {
   }
 }
 
-module.exports = { pool, initializeDatabase, scheduleBounds, enabledPrayersForDate, syncPrayerSchedules, TEST_MODE };
+module.exports = { pool, initializeDatabase, scheduleBounds, enabledPrayersForDate, recurringImamForDate, syncPrayerSchedules, TEST_MODE };

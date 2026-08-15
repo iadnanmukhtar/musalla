@@ -4,7 +4,16 @@
   <header class="page-head"><p class="eyebrow">NEW MUSALLA</p><h1>Register a Musalla</h1><p><%= isSuperAdminRegistration?'Add a new Musalla to the platform. You can manage it immediately after registration.':'The Musalla will be added immediately. A super admin must approve your initial membership and assign your role.' %></p></header>
   <form action="/musallas" method="post" class="surface stack">
     <label>Name<input name="name" required maxlength="150" placeholder="Community Musalla"></label>
-    <label>Address<input name="address" maxlength="300" placeholder="Street address"></label>
+    <fieldset class="profile-fieldset"><legend>Public address</legend>
+      <label>Street address<input name="street_address" required maxlength="200" placeholder="123 Community Lane"></label>
+      <label>City<input name="address_locality" required maxlength="120" placeholder="Chicago"></label>
+      <div class="profile-field-grid"><label>State or region<input name="address_region" maxlength="120" placeholder="IL"></label><label>Postal code<input name="postal_code" maxlength="24" placeholder="60601"></label></div>
+      <label>Country<input name="address_country" required maxlength="100" value="US" placeholder="US"></label>
+    </fieldset>
+    <label>Public description<textarea name="about" required maxlength="3000" rows="6" placeholder="Describe the community, who it serves, and what makes this prayer space useful to local Muslims."></textarea><small>This appears on the public Musalla page.</small></label>
+    <label>Facilities <span class="optional-label">Optional</span><textarea name="facilities" maxlength="2000" rows="4" placeholder="Parking&#10;Wudu facilities&#10;Women’s prayer area"></textarea><small>Enter one facility per line.</small></label>
+    <label>Website <span class="optional-label">Optional</span><input name="website_url" type="url" placeholder="https://..."></label>
+    <div class="profile-field-grid"><label>Public email <span class="optional-label">Optional</span><input name="public_email" type="email" maxlength="320"></label><label>Public phone <span class="optional-label">Optional</span><input name="public_phone" type="tel" maxlength="40"></label></div>
     <label>Prayer timetable or app link<input name="timetable_url" type="url" placeholder="https://..."></label>
     <input type="hidden" name="timezone" value="America/Chicago">
     <button class="button">Register Musalla</button>
