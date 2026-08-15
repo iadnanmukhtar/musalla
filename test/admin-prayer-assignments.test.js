@@ -52,5 +52,7 @@ test('admin schedule writes validate permissions, Imam membership, and stale ass
   assert.match(client, /imam_user_id/);
   assert.match(client, /Assign \$\{form\.dataset\.prayer\} on \$\{timing\.weekday\}/);
   assert.match(client, /Opt \$\{form\.dataset\.imam\} out of \$\{form\.dataset\.prayer\} on \$\{timing\.weekday\}\?/);
+  assert.match(client, /makeDismissible\(adminOptInDialog/);
+  assert.match(client, /makeDismissible\(adminOptOutDialog/);
   assert.match(client, /timing\.date/);
 });

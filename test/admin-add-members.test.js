@@ -9,6 +9,9 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 test('Musalla admins and super admins can activate members by email with selected roles', async () => {
   const server = read('src/server.js');
+  const membersView = read('views/members.ejs');
+  const superAdminView = read('views/super-admin-musalla.ejs');
+  const membersScript = read('public/members.js');
   const form = await ejs.renderFile(path.join(root, 'views', 'partials', 'add-member-form.ejs'), {
     addMemberAction: '/musallas/example-guid/members/add'
   });
@@ -22,6 +25,18 @@ test('Musalla admins and super admins can activate members by email with selecte
   assert.match(form, /name="roles" value="imam"/);
   assert.match(form, /name="roles" value="admin"/);
   assert.match(form, /starts immediately/);
+  assert.match(form, /<dialog[^>]+id="add-member-dialog"[^>]+data-add-member-dialog/);
+  assert.match(form, /data-add-member-open/);
+  assert.match(form, /data-add-member-close/);
+  assert.doesNotMatch(form, /data-confirm/);
+  assert.ok(membersView.indexOf('if(requests.length)') < membersView.indexOf('<h2>Current members</h2>'));
+  assert.ok(membersView.indexOf('<h2>Current members</h2>') < membersView.indexOf("include('partials/add-member-form'"));
+  assert.ok(superAdminView.indexOf('<h2>Membership requests</h2>') < superAdminView.indexOf('<h2>Members</h2>'));
+  assert.ok(superAdminView.indexOf('<h2>Members</h2>') < superAdminView.indexOf("include('partials/add-member-form'"));
+  assert.match(membersView, /<script src="\/members\.js\?v=5"><\/script>/);
+  assert.match(superAdminView, /<script src="\/members\.js\?v=5"><\/script>/);
+  assert.match(membersScript, /dialog\.showModal\(\)/);
+  assert.match(membersScript, /dialog\.close\(\)/);
 });
 
 test('only the signed-in membership owner can reject an added membership', () => {

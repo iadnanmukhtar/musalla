@@ -72,7 +72,6 @@
 </details>
 <button class="button">Save Musalla</button>
 </form>
-  <%- include('partials/add-member-form',{addMemberAction:`/super-admin/musallas/${musalla.id}/members/add`}) %>
   <% if(requests.length){ %>
     <section class="surface super-members">
       <h2>Membership requests</h2>
@@ -121,5 +120,7 @@
 <div class="empty">No members.</div>
 <% } %>
 </section>
+  <%- include('partials/add-member-form',{addMemberAction:`/super-admin/musallas/${musalla.id}/members/add`}) %>
 </main>
+<script src="/members.js?v=5"></script>
 <%- include('partials/foot') %>

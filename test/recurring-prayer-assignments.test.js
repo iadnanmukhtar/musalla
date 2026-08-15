@@ -43,7 +43,7 @@ test('schedule offers one-week or weekly opt-in and once-or-future change dialog
   assert.match(html, /id="opt-out-title"/);
   assert.match(html, /id="opt-out-description"/);
   assert.match(html, /id="opt-in-description"/);
-  assert.match(html, /musalla\.js\?v=9/);
+  assert.match(html, /musalla\.js\?v=10/);
 });
 
 test('recurrence persistence and future-scope updates are wired to generated slots', () => {
@@ -62,6 +62,9 @@ test('recurrence persistence and future-scope updates are wired to generated slo
   assert.match(client, /Replace \$\{form\.dataset\.imam\} for \$\{form\.dataset\.prayer\} on \$\{timing\.weekday\}\?/);
   assert.match(client, /Opt out of \$\{form\.dataset\.prayer\} on \$\{timing\.weekday\}\?/);
   assert.match(client, /This & future \$\{timing\.weekday\}s/);
+  assert.match(client, /makeDismissible\(optInDialog/);
+  assert.match(client, /makeDismissible\(optOutDialog/);
+  assert.match(client, /dialog\.close\('cancel'\)/);
   assert.match(client, /'occurrence'/);
   assert.match(client, /'future'/);
   assert.doesNotMatch(client, /opt-in-days|Number of days/);

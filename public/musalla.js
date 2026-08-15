@@ -34,6 +34,22 @@
   let pendingAdminOptInForm;
   let pendingAdminOptOutForm;
 
+  const makeDismissible = (dialog, clearPending) => {
+    const closeButton = dialog?.querySelector('.dialog-close');
+    closeButton?.addEventListener('click', event => {
+      event.preventDefault();
+      clearPending();
+      if (dialog.open) dialog.close('cancel');
+    });
+    dialog?.addEventListener('cancel', clearPending);
+  };
+
+  makeDismissible(optInDialog, () => { pendingOptInForm = undefined; });
+  makeDismissible(changeDialog, () => { pendingChangeForm = undefined; });
+  makeDismissible(optOutDialog, () => { pendingOptOutForm = undefined; });
+  makeDismissible(adminOptInDialog, () => { pendingAdminOptInForm = undefined; });
+  makeDismissible(adminOptOutDialog, () => { pendingAdminOptOutForm = undefined; });
+
   const setHiddenValue = (form, name, value) => {
     let input = form.querySelector(`[name="${name}"]`);
     if (!input) {

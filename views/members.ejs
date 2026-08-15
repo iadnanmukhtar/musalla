@@ -2,7 +2,6 @@
 <main>
   <a class="back" href="/musallas/<%= musalla.id %>">‹ Back to schedule</a>
   <header class="page-head"><p class="eyebrow"><%= musalla.name.toUpperCase() %></p><h1>Members</h1><p>Manage membership requests, imams, and administrators.</p></header>
-  <%- include('partials/add-member-form',{addMemberAction:`/musallas/${musalla.id}/members/add`}) %>
   <% if(requests.length){ %>
     <section class="membership-request-list"><div class="section-title"><h2>Requests</h2><span><%= requests.length %></span></div><div class="surface">
       <% requests.forEach(request=>{ const profileUrl=`/musallas/${musalla.id}/members/${request.id}/profile`; %>
@@ -17,6 +16,8 @@
     <% }) %>
     <% if(!members.length){ %><div class="empty">No approved members yet.</div><% } %>
   </section>
+  <%- include('partials/add-member-form',{addMemberAction:`/musallas/${musalla.id}/members/add`}) %>
   <form class="leave-musalla" action="/musallas/<%= musalla.id %>/leave" method="post" data-confirm-title="Leave this Musalla?" data-confirm="Your future prayer assignments at <%= musalla.name %> will be cleared." data-confirm-button="Leave Musalla" data-confirm-style="danger"><button>Leave the Musalla</button></form>
 </main>
+<script src="/members.js?v=5"></script>
 <%- include('partials/foot') %>
